@@ -108,7 +108,7 @@ export const createStarterState = (): RentalSystemState => ({
         id: 'doc-horizon-ta',
         label: 'Tenancy Agreement',
         fileName: 'TA_Horizon_B-08-11_MichaelChang.pdf',
-        uploadedAt: '2025-12-01T09:00:00.000Z',
+        uploadedAt: '2025-12-01',
       },
       renovations: [
         {
@@ -142,7 +142,7 @@ export const createStarterState = (): RentalSystemState => ({
         id: 'doc-vogue-ta',
         label: 'Tenancy Agreement',
         fileName: 'TA_ResidensiVogue_A-12-04_SarahJenkins.pdf',
-        uploadedAt: '2025-08-18T09:00:00.000Z',
+        uploadedAt: '2025-08-18',
       },
       renovations: [],
     },

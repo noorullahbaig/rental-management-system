@@ -376,7 +376,7 @@ export const createPropertyRecord = async (prisma: PrismaClient, payload: Proper
       tenancyAgreementId: payload.agreementFileName ? randomUUID() : undefined,
       tenancyAgreementLabel: payload.agreementFileName ? 'Tenancy Agreement' : undefined,
       tenancyAgreementFileName: payload.agreementFileName,
-      tenancyAgreementUploadedAt: payload.agreementFileName ? new Date().toISOString() : undefined,
+      tenancyAgreementUploadedAt: payload.agreementFileName ? new Date().toISOString().slice(0, 10) : undefined,
     },
   })
   return buildState(prisma)
