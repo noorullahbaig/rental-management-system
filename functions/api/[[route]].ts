@@ -15,6 +15,7 @@ import {
   saveMonthlyExpenseEntryRecord,
   saveMonthlyRentalIncomeRecord,
   seedStarterData,
+  ensureStarterData,
 } from '../../server/state.ts'
 
 export type Bindings = {
@@ -78,6 +79,7 @@ app.post('/logout', async (c) => {
 })
 
 app.get('/bootstrap', async (c) => {
+  await ensureStarterData(c.var.prisma)
   return c.json(await buildBootstrapResponse(c.var.prisma))
 })
 
