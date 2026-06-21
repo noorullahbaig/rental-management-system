@@ -2,9 +2,6 @@ name = "rental-system"
 compatibility_date = "2024-03-20"
 pages_build_output_dir = "dist"
 
-[vars]
-ADMIN_PASSWORD = "admin" # Change this securely via Cloudflare dashboard later
-
 [[d1_databases]]
 binding = "DB"
 database_name = "rental-db"
