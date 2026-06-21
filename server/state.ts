@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+const randomUUID = () => crypto.randomUUID()
 import type { PrismaClient } from '@prisma/client'
 import { buildMonthlyProfitLoss, buildMonthlyProfitLossPortfolioSummary } from '../src/reports.ts'
 import { createStarterState } from '../src/starterData.ts'
