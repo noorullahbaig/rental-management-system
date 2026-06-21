@@ -5,3 +5,7 @@ pages_build_output_dir = "dist"
 [vars]
 ADMIN_PASSWORD = "admin" # Change this securely via Cloudflare dashboard later
 
+[[d1_databases]]
+binding = "DB"
+database_name = "rental-db"
+database_id = "eef57f26-ebb5-4514-bfa2-aed14df28e0a"
