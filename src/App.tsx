@@ -42,7 +42,9 @@ import {
   fetchBootstrap,
   saveMonthlyExpenseEntry,
   saveMonthlyRentalIncome,
+  UnauthorizedError,
 } from './api'
+import { Login } from './components/Login'
 import {
   getExpiringWithinDays,
   getLastTenantActivity,
@@ -319,6 +321,7 @@ function Drawer({
 
 function App() {
   const reduceMotion = useReducedMotion()
+  const [isAuthenticated, setIsAuthenticated] = useState(true)
   const [state, setState] = useState<RentalSystemState>(() => createEmptyState())
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [bootstrapError, setBootstrapError] = useState('')
@@ -388,9 +391,14 @@ function App() {
         setSelectedPropertyId(response.state.properties[0]?.id || null)
         setSelectedTenancyId(response.state.tenancies[0]?.id || null)
         setBootstrapError('')
+        setIsAuthenticated(true)
       } catch (error) {
         if (cancelled) return
-        setBootstrapError(error instanceof Error ? error.message : 'Unable to load rental operations data.')
+        if (error instanceof UnauthorizedError) {
+          setIsAuthenticated(false)
+        } else {
+          setBootstrapError(error instanceof Error ? error.message : 'Unable to load rental operations data.')
+        }
       } finally {
         if (!cancelled) setIsBootstrapping(false)
       }
@@ -401,7 +409,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isAuthenticated])
 
   const filteredProperties = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -1007,6 +1015,18 @@ function App() {
     ] as ReportKey[]).forEach((report) => exportReportCsv(report))
   }
 
+  if (!isAuthenticated) {
+    return <Login onLogin={() => setIsAuthenticated(true)} />
+  }
+
+  if (isBootstrapping) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        Loading...
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <div className="flex min-h-screen">
@@ -1386,10 +1406,10 @@ function App() {
                           ? buildPropertyTimeSeries(state, selectedAnalyticsProperty.id, fromMonth, toMonth)
                           : []
 
-                        const totalGrossRental = chartData.reduce((acc, row) => acc + (row.grossRental || 0), 0)
-                        const totalDirectExpenses = chartData.reduce((acc, row) => acc + (row.directExpensesTotal || 0), 0)
-                        const totalIndirectExpenses = chartData.reduce((acc, row) => acc + (row.indirectExpensesTotal || 0), 0)
-                        const totalNetReceived = chartData.reduce((acc, row) => acc + (row.netRentalAmountReceive || 0), 0)
+                        const totalGrossRental = chartData.reduce((acc, row) => acc + Number(row.grossRental || 0), 0)
+                        const totalDirectExpenses = chartData.reduce((acc, row) => acc + Number(row.directExpensesTotal || 0), 0)
+                        const totalIndirectExpenses = chartData.reduce((acc, row) => acc + Number(row.indirectExpensesTotal || 0), 0)
+                        const totalNetReceived = chartData.reduce((acc, row) => acc + Number(row.netRentalAmountReceive || 0), 0)
 
                         // ── Editor helpers ──
                         const getDraftValue = (key: string, savedVal: number) =>
@@ -1579,10 +1599,10 @@ function App() {
                             {!selectedAnalyticsProperty && (() => {
                               const portfolioTotals = analyticsProperties.reduce((acc, prop) => {
                                 const d = buildPropertyTimeSeries(state, prop.id, fromMonth, toMonth)
-                                acc.gross += d.reduce((s, r) => s + (r.grossRental || 0), 0)
-                                acc.direct += d.reduce((s, r) => s + (r.directExpensesTotal || 0), 0)
-                                acc.indirect += d.reduce((s, r) => s + (r.indirectExpensesTotal || 0), 0)
-                                acc.net += d.reduce((s, r) => s + (r.netRentalAmountReceive || 0), 0)
+                                acc.gross += d.reduce((s, r) => s + Number(r.grossRental || 0), 0)
+                                acc.direct += d.reduce((s, r) => s + Number(r.directExpensesTotal || 0), 0)
+                                acc.indirect += d.reduce((s, r) => s + Number(r.indirectExpensesTotal || 0), 0)
+                                acc.net += d.reduce((s, r) => s + Number(r.netRentalAmountReceive || 0), 0)
                                 return acc
                               }, { gross: 0, direct: 0, indirect: 0, net: 0 })
 
@@ -1613,8 +1633,8 @@ function App() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                       {analyticsProperties.map(prop => {
                                         const propData = buildPropertyTimeSeries(state, prop.id, fromMonth, toMonth)
-                                        const propGross = propData.reduce((s, r) => s + (r.grossRental || 0), 0)
-                                        const propNet = propData.reduce((s, r) => s + (r.netRentalAmountReceive || 0), 0)
+                                        const propGross = propData.reduce((s, r) => s + Number(r.grossRental || 0), 0)
+                                        const propNet = propData.reduce((s, r) => s + Number(r.netRentalAmountReceive || 0), 0)
                                         const hasData = propGross > 0
                                         const operatingMargin = propGross > 0 ? ((propNet / propGross) * 100).toFixed(0) : null
 
@@ -2080,7 +2100,7 @@ function App() {
                         
                         if (portfolioViewMode === 'ttm') {
                           const months = getPreceding12Months(monthlyProfitLossPeriod)
-                          const aggregated: Record<string, MonthlyProfitLossPropertyReport> = {}
+                          const aggregated: Record<string, any> = {}
                           
                           months.forEach(m => {
                             const mReports = buildMonthlyProfitLoss(state, { periodMonth: m })
@@ -2096,12 +2116,12 @@ function App() {
                                 agg.netRentalAmount += r.netRentalAmount
                                 agg.netRentalAmountReceive += r.netRentalAmountReceive
                                 
-                                r.directExpenses.forEach(exp => {
-                                  const aggExp = agg.directExpenses.find(e => e.categoryId === exp.categoryId)
+                                r.directExpenses.forEach((exp: any) => {
+                                  const aggExp = agg.directExpenses.find((e: any) => e.categoryId === exp.categoryId)
                                   if (aggExp) aggExp.amount += exp.amount
                                 })
-                                r.indirectExpenses.forEach(exp => {
-                                  const aggExp = agg.indirectExpenses.find(e => e.categoryId === exp.categoryId)
+                                r.indirectExpenses.forEach((exp: any) => {
+                                  const aggExp = agg.indirectExpenses.find((e: any) => e.categoryId === exp.categoryId)
                                   if (aggExp) aggExp.amount += exp.amount
                                 })
                               }
@@ -2259,8 +2279,8 @@ function App() {
                               reportPropertyOptions={reportPropertyOptions}
                               reportTenantOptions={reportTenantOptions}
                               reportTenancyOptions={reportTenancyOptions}
-                              statementRows={statementRows}
-                              monthlyCollectionRows={monthlyCollectionRows}
+                              statementRows={statementRows as unknown as Record<string, unknown>[]}
+                              monthlyCollectionRows={monthlyCollectionRows as unknown as Record<string, unknown>[]}
                               arrearsRows={arrearsRows}
                               rentRollRows={rentRollRows}
                               depositRows={depositRows}

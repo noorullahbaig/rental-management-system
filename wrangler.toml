@@ -1,0 +1,12 @@
+name = "rental-system"
+compatibility_date = "2024-03-20"
+pages_build_output_dir = "dist"
+
+[vars]
+ADMIN_PASSWORD = "admin" # Change this securely via Cloudflare dashboard later
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rental-db"
+database_id = "00000000-0000-0000-0000-000000000000" # Replace after creating DB
+preview_database_id = "DB" # Use local D1 for preview

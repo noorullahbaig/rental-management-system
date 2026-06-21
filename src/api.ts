@@ -12,7 +12,14 @@ import type {
 } from './types'
 import type { MonthlyProfitLossPortfolioSummary, MonthlyProfitLossPropertyReport } from './reports'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3001/api'
+const API_BASE = '/api'
+
+export class UnauthorizedError extends Error {
+  constructor() {
+    super('Unauthorized')
+    this.name = 'UnauthorizedError'
+  }
+}
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -24,6 +31,9 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   })
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new UnauthorizedError()
+    }
     const message = await response.text()
     throw new Error(message || `Request failed: ${response.status}`)
   }
