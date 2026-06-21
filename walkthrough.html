@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rental Operations Walkthrough</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --panel: #ffffff;
+        --ink: #172033;
+        --muted: #64748b;
+        --line: #dbe3ee;
+        --primary: #0f8bb3;
+        --primary-dark: #0b6f92;
+        --late: #b42318;
+        --ok: #096b3f;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, #e7f7fb 0, transparent 32rem),
+          var(--bg);
+      }
+      button, input, select { font: inherit; }
+      .shell { min-height: 100vh; display: grid; grid-template-columns: 260px 1fr; }
+      aside { border-right: 1px solid var(--line); background: rgba(255,255,255,.88); padding: 22px; }
+      main { padding: 24px; overflow: auto; }
+      h1, h2, h3 { margin: 0; }
+      h1 { font-size: 22px; }
+      h2 { font-size: 20px; margin-bottom: 12px; }
+      h3 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; }
+      .muted { color: var(--muted); }
+      .nav { margin-top: 28px; display: grid; gap: 8px; }
+      .nav button, .btn {
+        border: 1px solid var(--line);
+        background: white;
+        color: var(--ink);
+        border-radius: 9px;
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      .nav button.active, .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+      .btn:disabled { opacity: .45; cursor: not-allowed; }
+      .top { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 18px; }
+      .search { width: min(360px, 100%); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+      .grid { display: grid; gap: 14px; }
+      .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, .04);
+      }
+      .metric-label { color: var(--muted); font-size: 12px; }
+      .metric-value { font-size: 26px; font-weight: 700; margin-top: 5px; }
+      table { width: 100%; border-collapse: collapse; background: white; }
+      th, td { border-bottom: 1px solid #edf2f7; padding: 10px; text-align: left; white-space: nowrap; font-size: 13px; }
+      th { background: #f8fafc; color: #475569; position: sticky; top: 0; cursor: pointer; }
+      .table-wrap { border: 1px solid var(--line); border-radius: 10px; overflow: auto; background: white; }
+      .pill { display: inline-flex; border-radius: 999px; padding: 4px 8px; font-size: 12px; font-weight: 700; }
+      .pill.ok { background: #dcfce7; color: var(--ok); }
+      .pill.late { background: #fee4e2; color: var(--late); }
+      .pill.warn { background: #fef3c7; color: #92400e; }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin: 12px 0; }
+      label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+      select, input[type="month"] { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; background: white; color: var(--ink); }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .hidden { display: none; }
+      .report-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 8px; }
+      @media (max-width: 900px) {
+        .shell { grid-template-columns: 1fr; }
+        aside { position: sticky; top: 0; z-index: 3; }
+        .metrics, .cards { grid-template-columns: 1fr; }
+        .top { display: grid; }
+      }
+      @media print {
+        aside, .top, .nav, .toolbar, .actions { display: none !important; }
+        main { padding: 0; }
+        .card { box-shadow: none; border: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <h1>Rental Operations</h1>
+        <p class="muted">Presentation walkthrough with demo portfolio and functional reports.</p>
+        <div class="nav">
+          <button class="active" data-view="overview">Overview</button>
+          <button data-view="properties">Properties</button>
+          <button data-view="tenants">Tenants</button>
+          <button data-view="reports">Reports</button>
+        </div>
+      </aside>
+      <main>
+        <div class="top">
+          <div>
+            <h2 id="view-title">Overview</h2>
+            <p class="muted" id="view-subtitle">Portfolio control, rent collection, and reporting snapshot.</p>
+          </div>
+          <input class="search" id="search" placeholder="Search tenant, property, city" />
+        </div>
+
+        <section id="overview" class="view">
+          <div class="grid metrics" id="metrics"></div>
+          <div class="card" style="margin-top:14px">
+            <h2>Collection Exceptions</h2>
+            <div class="table-wrap"><table id="exceptions-table"></table></div>
+          </div>
+        </section>
+
+        <section id="properties" class="view hidden">
+          <div class="card"><div class="table-wrap"><table id="properties-table"></table></div></div>
+        </section>
+
+        <section id="tenants" class="view hidden">
+          <div class="card"><div class="table-wrap"><table id="tenants-table"></table></div></div>
+        </section>
+
+        <section id="reports" class="view hidden">
+          <div id="report-groups"></div>
+          <div class="card" id="report-panel" style="margin-top:14px">
+            <div class="report-title">
+              <div>
+                <h2 id="active-report">Statement of Account</h2>
+                <p class="muted">Filtered report data is used for CSV and print/PDF.</p>
+              </div>
+            </div>
+            <div class="toolbar">
+              <label>Property <select id="property-filter"></select></label>
+              <label>Tenant <select id="tenant-filter"></select></label>
+              <label>Status <select id="status-filter"></select></label>
+              <label>Month <input id="month-filter" type="month" value="2026-05" /></label>
+            </div>
+            <div class="actions">
+              <button class="btn primary" id="csv">Export CSV</button>
+              <button class="btn" id="pdf">Print / Save PDF</button>
+            </div>
+            <div class="table-wrap" style="margin-top:12px"><table id="report-table"></table></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const money = value => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value || 0);
+      const data = {
+        properties: [
+          { id: 'p1', serial: '00001', address: 'B-08-11, The Horizon Suites', city: 'Bangsar South, Kuala Lumpur', type: 'Highrise', book: 690000, market: 825000 },
+          { id: 'p2', serial: '00002', address: 'A-12-04, Residensi Vogue', city: 'Mont Kiara, Kuala Lumpur', type: 'Highrise', book: 612000, market: 705000 },
+          { id: 'p3', serial: '00003', address: 'C-33-01, Sentral Residences', city: 'KL Sentral, Kuala Lumpur', type: 'Highrise', book: 910000, market: 1080000 },
+          { id: 'p4', serial: '00004', address: 'D-07-10, Damansara Grove', city: 'Petaling Jaya, Selangor', type: 'Highrise', book: 552000, market: 640000 }
+        ],
+        tenants: [
+          { id: 't1', name: 'Michael Chang', mobile: '+60 12-345 6789', email: 'm.chang@techcorp.com' },
+          { id: 't2', name: 'Sarah Jenkins', mobile: '+60 17-288 4410', email: 's.jenkins@example.com' },
+          { id: 't3', name: 'Elena Rodriguez', mobile: '+60 11-2208 7710', email: 'elena.r@designstudio.my' },
+          { id: 't4', name: 'Aisha Rahman', mobile: '+60 13-771 5520', email: 'aisha.rahman@novamed.my' }
+        ],
+        tenancies: [
+          { id: 'ta1', propertyId: 'p1', tenantId: 't1', start: '2025-12-01', expiry: '2026-12-01', gross: 3500, surcharge: 0, service: 50, sst: 4, deposit: 7000, status: 'Active', expenses: 2030, depreciation: 143 },
+          { id: 'ta2', propertyId: 'p2', tenantId: 't2', start: '2025-09-15', expiry: '2026-09-14', gross: 3200, surcharge: 120, service: 64, sst: 5.12, deposit: 6400, status: 'Late Collection', expenses: 1913, depreciation: 0 },
+          { id: 'ta3', propertyId: 'p3', tenantId: 't3', start: '2025-03-01', expiry: '2026-06-18', gross: 4800, surcharge: 0, service: 96, sst: 7.68, deposit: 9600, status: 'Expiring', expenses: 2687, depreciation: 107 },
+          { id: 'ta4', propertyId: 'p4', tenantId: 't4', start: '2025-07-01', expiry: '2026-07-01', gross: 2800, surcharge: 0, service: 56, sst: 4.48, deposit: 5600, status: 'Closed Early', expenses: 1440, depreciation: 0 }
+        ],
+        collections: [
+          { tenancyId: 'ta1', expected: '2026-05-01', actual: '2026-05-01', collected: 3500, remitted: '2026-05-03' },
+          { tenancyId: 'ta2', expected: '2026-05-01', actual: '2026-05-14', collected: 2200, remitted: '' },
+          { tenancyId: 'ta3', expected: '2026-05-01', actual: '2026-05-02', collected: 4800, remitted: '2026-05-04' },
+          { tenancyId: 'ta4', expected: '2026-04-01', actual: '2026-04-01', collected: 2800, remitted: '2026-04-02' }
+        ]
+      };
+
+      let activeReport = 'Statement of Account';
+      let sort = { key: '', dir: 1 };
+      const reportNames = [
+        ['Financial Reports', ['Statement of Account', 'Profit & Loss', 'Cash Account']],
+        ['Collection Control', ['Monthly Cash Collection', 'Arrears / Late Collection Aging']],
+        ['Portfolio Control', ['Rent Roll & Tenancy Status', 'Deposit Register']],
+        ['Cost Control', ['Expense & Depreciation Schedule']]
+      ];
+
+      const prop = id => data.properties.find(p => p.id === id) || {};
+      const tenant = id => data.tenants.find(t => t.id === id) || {};
+      const tenancy = id => data.tenancies.find(t => t.id === id) || {};
+      const daysLate = (expected, actual) => Math.max(0, Math.ceil((new Date(actual || '2026-05-30') - new Date(expected)) / 86400000));
+      const paymentStatus = row => row.collected === 0 ? 'Unpaid' : row.collected < row.expectedAmount ? 'Partial' : daysLate(row.expected, row.actual) > 0 ? 'Late' : 'Paid';
+
+      function statementRows() {
+        return data.collections.map(c => {
+          const t = tenancy(c.tenancyId), p = prop(t.propertyId), n = tenant(t.tenantId);
+          const expectedAmount = t.gross + t.surcharge;
+          return {
+            Property: p.serial,
+            Address: p.address,
+            Tenant: n.name,
+            Expected: c.expected,
+            Actual: c.actual || '-',
+            Gross: money(t.gross),
+            Surcharge: money(t.surcharge),
+            ExpectedAmount: money(expectedAmount),
+            Collected: money(c.collected),
+            Outstanding: money(expectedAmount - c.collected),
+            DaysLate: daysLate(c.expected, c.actual),
+            Status: paymentStatus({ ...c, expectedAmount }),
+            Remitted: c.remitted || '-'
+          };
+        });
+      }
+      function profitRows() {
+        return data.tenancies.map(t => {
+          const p = prop(t.propertyId), n = tenant(t.tenantId);
+          const grossIncome = t.gross + t.surcharge;
+          const netIncome = grossIncome - t.service - t.sst;
+          const profit = netIncome - t.expenses;
+          return { Property: p.serial, Tenant: n.name, GrossIncome: money(grossIncome), ServiceFee: money(t.service), SST: money(t.sst), NetIncome: money(netIncome), Expenses: money(t.expenses), ProfitLoss: money(profit) };
+        });
+      }
+      function cashRows() {
+        return data.collections.map(c => {
+          const t = tenancy(c.tenancyId), p = prop(t.propertyId), n = tenant(t.tenantId);
+          const outflow = t.service + t.sst + Math.max(0, c.collected - t.service - t.sst);
+          return { Property: p.serial, Tenant: n.name, RentalCollected: money(c.collected), DepositCollected: money(t.deposit), CashOutflow: money(outflow), NetMovement: money(c.collected + t.deposit - outflow) };
+        });
+      }
+      function rentRollRows() {
+        return data.tenancies.map(t => ({ Property: prop(t.propertyId).serial, Address: prop(t.propertyId).address, Tenant: tenant(t.tenantId).name, Start: t.start, Expiry: t.expiry, MonthlyGross: money(t.gross), DepositHeld: money(t.deposit), Status: t.status }));
+      }
+      function depositRows() {
+        return data.tenancies.map(t => ({ Tenant: tenant(t.tenantId).name, Property: prop(t.propertyId).serial, DepositReceived: money(t.deposit), Refunded: t.status === 'Closed Early' ? money(3000) : money(0), BalanceHeld: money(t.status === 'Closed Early' ? t.deposit - 3000 : t.deposit), Status: t.status === 'Closed Early' ? 'Partial Refund' : 'Active' }));
+      }
+      function expenseRows() {
+        return data.tenancies.map(t => ({ Property: prop(t.propertyId).serial, Tenant: tenant(t.tenantId).name, MaintenanceAndCosts: money(t.expenses - t.depreciation), Depreciation: money(t.depreciation), TotalCost: money(t.expenses), Schedule: t.depreciation ? 'Active' : 'None' }));
+      }
+      function reportRows() {
+        if (activeReport === 'Profit & Loss') return profitRows();
+        if (activeReport === 'Cash Account') return cashRows();
+        if (activeReport === 'Monthly Cash Collection') return statementRows();
+        if (activeReport === 'Arrears / Late Collection Aging') return statementRows().filter(r => r.Status !== 'Paid');
+        if (activeReport === 'Rent Roll & Tenancy Status') return rentRollRows();
+        if (activeReport === 'Deposit Register') return depositRows();
+        if (activeReport === 'Expense & Depreciation Schedule') return expenseRows();
+        return statementRows();
+      }
+      function applyFilters(rows) {
+        const propertyId = document.getElementById('property-filter').value;
+        const tenantId = document.getElementById('tenant-filter').value;
+        const status = document.getElementById('status-filter').value;
+        return rows.filter(r => {
+          if (propertyId && r.Property !== prop(propertyId).serial) return false;
+          if (tenantId && r.Tenant !== tenant(tenantId).name) return false;
+          if (status && r.Status !== status && r.Status !== tenancyForTenant(r.Tenant)?.status) return false;
+          return true;
+        });
+      }
+      function tenancyForTenant(name) {
+        const n = data.tenants.find(t => t.name === name);
+        return data.tenancies.find(t => t.tenantId === n?.id);
+      }
+      function renderTable(id, rows) {
+        const table = document.getElementById(id);
+        if (!rows.length) { table.innerHTML = '<tbody><tr><td>No report data for current filters.</td></tr></tbody>'; return; }
+        const keys = Object.keys(rows[0]);
+        if (!sort.key || !keys.includes(sort.key)) sort.key = keys[0];
+        rows = [...rows].sort((a,b) => String(a[sort.key]).localeCompare(String(b[sort.key])) * sort.dir);
+        table.innerHTML = '<thead><tr>' + keys.map(k => `<th data-key="${k}">${k}${sort.key === k ? (sort.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + '</tr></thead><tbody>' +
+          rows.map(r => '<tr>' + keys.map(k => `<td>${formatCell(k, r[k])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+        table.querySelectorAll('th').forEach(th => th.onclick = () => { sort.dir = sort.key === th.dataset.key ? sort.dir * -1 : 1; sort.key = th.dataset.key; renderReport(); });
+      }
+      function formatCell(key, value) {
+        if (key === 'Status') {
+          const tone = value === 'Paid' || value === 'Active' ? 'ok' : value === 'Late' || value === 'Late Collection' ? 'late' : 'warn';
+          return `<span class="pill ${tone}">${value}</span>`;
+        }
+        return value;
+      }
+      function renderMetrics() {
+        const gross = data.tenancies.reduce((a,t) => a + t.gross, 0);
+        const late = statementRows().filter(r => r.Status !== 'Paid').length;
+        document.getElementById('metrics').innerHTML = [
+          ['Properties', data.properties.length],
+          ['Tenancies', data.tenancies.length],
+          ['Monthly Gross', money(gross)],
+          ['Collection Exceptions', late]
+        ].map(([label,value]) => `<div class="card"><div class="metric-label">${label}</div><div class="metric-value">${value}</div></div>`).join('');
+        renderTable('exceptions-table', statementRows().filter(r => r.Status !== 'Paid'));
+      }
+      function renderProperties() {
+        renderTable('properties-table', data.properties.map(p => ({ Serial: p.serial, Address: p.address, City: p.city, Type: p.type, BookValue: money(p.book), MarketValue: money(p.market) })));
+      }
+      function renderTenants() {
+        renderTable('tenants-table', data.tenancies.map(t => ({ Tenant: tenant(t.tenantId).name, Mobile: tenant(t.tenantId).mobile, Email: tenant(t.tenantId).email, Property: prop(t.propertyId).address, Status: t.status, GrossRent: money(t.gross) })));
+      }
+      function renderReportGroups() {
+        document.getElementById('report-groups').innerHTML = reportNames.map(([group, reports]) => `<h3>${group}</h3><div class="grid cards">${reports.map(r => `<div class="card"><strong>${r}</strong><p class="muted">Functional report using demo ledger data.</p><button class="btn" data-report="${r}">View Report</button></div>`).join('')}</div>`).join('');
+        document.querySelectorAll('[data-report]').forEach(btn => btn.onclick = () => { activeReport = btn.dataset.report; sort = { key: '', dir: 1 }; renderReport(); document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth' }); });
+      }
+      function renderReport() {
+        document.getElementById('active-report').textContent = activeReport;
+        renderTable('report-table', applyFilters(reportRows()));
+      }
+      function setView(view) {
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.getElementById(view).classList.remove('hidden');
+        document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+        document.getElementById('view-title').textContent = view[0].toUpperCase() + view.slice(1);
+      }
+      function populateFilters() {
+        document.getElementById('property-filter').innerHTML = '<option value="">All properties</option>' + data.properties.map(p => `<option value="${p.id}">${p.serial} - ${p.address}</option>`).join('');
+        document.getElementById('tenant-filter').innerHTML = '<option value="">All tenants</option>' + data.tenants.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        document.getElementById('status-filter').innerHTML = '<option value="">All statuses</option><option>Paid</option><option>Late</option><option>Partial</option><option>Active</option><option>Expiring</option><option>Closed Early</option>';
+        document.querySelectorAll('#property-filter,#tenant-filter,#status-filter,#month-filter').forEach(el => el.onchange = renderReport);
+      }
+      function exportCsv() {
+        const rows = applyFilters(reportRows());
+        if (!rows.length) return;
+        const keys = Object.keys(rows[0]);
+        const csv = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]).replaceAll('"','""')}"`).join(','))].join('\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+        a.download = activeReport.toLowerCase().replaceAll(' ', '-') + '.csv';
+        a.click();
+      }
+      function init() {
+        document.querySelectorAll('.nav button').forEach(b => b.onclick = () => setView(b.dataset.view));
+        document.getElementById('csv').onclick = exportCsv;
+        document.getElementById('pdf').onclick = () => window.print();
+        populateFilters();
+        renderMetrics(); renderProperties(); renderTenants(); renderReportGroups(); renderReport();
+      }
+      init();
+    </script>
+  </body>
+</html>

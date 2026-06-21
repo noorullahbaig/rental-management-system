@@ -1,0 +1,2283 @@
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import * as Select from '@radix-ui/react-select'
+import * as Tabs from '@radix-ui/react-tabs'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import {
+  AlertTriangle,
+  BadgeDollarSign,
+  Bell,
+  Building2,
+  CalendarClock,
+  Check,
+  ChevronDown,
+  FileText,
+  Menu,
+  Plus,
+  Search,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react'
+import { seedDemoState } from './demoData'
+import {
+  getExpiringWithinDays,
+  getPropertyForTenancy,
+  getTenancyDisplayStatus,
+  getTenantForTenancy,
+} from './selectors'
+import { loadState, saveState } from './storage'
+import {
+  buildCashAccount,
+  buildProfitLoss,
+  buildStatementOfAccount,
+  calculateAccumulatedDepreciation,
+  calculateAgingBucket,
+  calculateDaysLate,
+  calculateDepositBalance,
+  calculateMonthlyDepreciation,
+  calculateRemainingUndepreciatedAmount,
+  triggerCsvDownload,
+  triggerPdfPrint,
+} from './reports'
+import type {
+  DeductionSet,
+  DepositTransaction,
+  DepreciationPeriod,
+  Property,
+  PropertyKind,
+  RentalSystemState,
+  RentalTerms,
+  Tenant,
+  Tenancy,
+} from './types'
+
+type Section = 'overview' | 'properties' | 'tenants' | 'reports'
+type TenancyStatus = Tenancy['status']
+type RentFilter = 'All' | 'Late' | 'Paid' | 'Expiring' | 'Closed'
+
+interface PropertyDraft {
+  serialNumber: string
+  address: Property['address']
+  kind: PropertyKind
+  ownership: Property['ownership']
+  spaPrice: number
+  bookValue: number
+  marketValue: number
+  projectName: string
+  developerName: string
+  agreementFileName: string
+}
+
+interface TenantDraft {
+  name: string
+  nricPassport: string
+  email: string
+  mobile: string
+}
+
+interface RenovationDraft {
+  amountPaid: number
+  paymentDate: string
+  invoiceNumber: string
+  description: string
+  depreciationPeriod: DepreciationPeriod
+  attachmentName: string
+}
+
+interface TenancyDraft {
+  tenantId: string
+  commencementDate: string
+  keyCollectionDate: string
+  moveInDate: string
+  expirationDate: string
+  tenure: string
+  airSelangorAccount: string
+  tnbAccount: string
+  tmAccount: string
+  rentalTerms: RentalTerms
+  deductions: DeductionSet
+}
+
+type ReportKey =
+  | 'Statement of Account'
+  | 'Profit & Loss'
+  | 'Cash Account'
+  | 'Monthly Cash Collection'
+  | 'Arrears / Late Collection Aging'
+  | 'Rent Roll & Tenancy Status'
+  | 'Deposit Register'
+  | 'Expense & Depreciation Schedule'
+
+const navItems: { id: Section; label: string; icon: typeof Building2 }[] = [
+  { id: 'overview', label: 'Overview', icon: Wallet },
+  { id: 'properties', label: 'Properties', icon: Building2 },
+  { id: 'tenants', label: 'Tenants', icon: Users },
+  { id: 'reports', label: 'Reports', icon: FileText },
+]
+
+const emptyDeductions = (): DeductionSet => ({
+  maintenanceCharges: 0,
+  quitRent: 0,
+  assessment: 0,
+  utilityCharges: 0,
+  fireInsurancePremium: 0,
+  sinkingFundPayment: 0,
+  miscellaneousCharges: 0,
+  bankCostOfFunds: 0,
+  depreciationCost: 0,
+})
+
+const emptyRentalTerms = (): RentalTerms => ({
+  rentalDeposit: 0,
+  surcharge: 0,
+  monthlyGross: 0,
+  dateOfCollection: '',
+  serviceFeeDeduction: 0,
+  monthlyNet: 0,
+  dateOfNetRemitted: '',
+  cumulativeGross: 0,
+  cumulativeNet: 0,
+  lateCollectionFlag: false,
+})
+
+const emptyPropertyDraft = (): PropertyDraft => ({
+  serialNumber: '',
+  address: { unitNumber: '', streetAddress: '', cityState: '' },
+  kind: 'Highrise',
+  ownership: 'Freehold',
+  spaPrice: 0,
+  bookValue: 0,
+  marketValue: 0,
+  projectName: '',
+  developerName: '',
+  agreementFileName: '',
+})
+
+const emptyTenantDraft = (): TenantDraft => ({
+  name: '',
+  nricPassport: '',
+  email: '',
+  mobile: '',
+})
+
+const emptyRenovationDraft = (): RenovationDraft => ({
+  amountPaid: 0,
+  paymentDate: '',
+  invoiceNumber: '',
+  description: '',
+  depreciationPeriod: 1,
+  attachmentName: '',
+})
+
+const emptyTenancyDraft = (): TenancyDraft => ({
+  tenantId: '',
+  commencementDate: '',
+  keyCollectionDate: '',
+  moveInDate: '',
+  expirationDate: '',
+  tenure: '',
+  airSelangorAccount: '',
+  tnbAccount: '',
+  tmAccount: '',
+  rentalTerms: emptyRentalTerms(),
+  deductions: emptyDeductions(),
+})
+
+const currency = (value: number) =>
+  new Intl.NumberFormat('en-MY', {
+    style: 'currency',
+    currency: 'MYR',
+    maximumFractionDigits: 2,
+  }).format(value || 0)
+
+const id = () => Math.random().toString(36).slice(2, 11)
+
+const deriveTenancyStatus = (draft: TenancyDraft): TenancyStatus => {
+  if (draft.rentalTerms.lateCollectionFlag) return 'Late Collection'
+  return 'Active'
+}
+
+function Drawer({
+  title,
+  open,
+  onOpenChange,
+  children,
+}: {
+  title: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-slate-900/30 backdrop-blur-[2px]" />
+        <Dialog.Content className="fixed right-0 top-0 h-full w-full max-w-xl border-l border-slate-200 bg-white p-6 shadow-2xl focus:outline-none">
+          <div className="mb-4 flex items-center justify-between">
+            <Dialog.Title className="text-lg font-semibold text-slate-900">{title}</Dialog.Title>
+            <Dialog.Close className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+              <X size={18} />
+            </Dialog.Close>
+          </div>
+          <div className="h-[calc(100%-3rem)] overflow-auto pr-1">{children}</div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function App() {
+  const reduceMotion = useReducedMotion()
+  const [state, setState] = useState<RentalSystemState>(() => loadState())
+  const [query, setQuery] = useState('')
+  const [section, setSection] = useState<Section>('overview')
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null)
+  const [selectedTenancyId, setSelectedTenancyId] = useState<string | null>(null)
+  const [rentFilter, setRentFilter] = useState<RentFilter>('All')
+  const [showMobileNav, setShowMobileNav] = useState(false)
+  const [propertyDrawer, setPropertyDrawer] = useState(false)
+  const [tenantDrawer, setTenantDrawer] = useState(false)
+  const [tenancyDrawer, setTenancyDrawer] = useState(false)
+  const [renovationDrawer, setRenovationDrawer] = useState(false)
+  const [reportViewerOpen, setReportViewerOpen] = useState(false)
+  const [activeReport, setActiveReport] = useState<ReportKey>('Statement of Account')
+  const [reportPropertyId, setReportPropertyId] = useState('')
+  const [reportTenantId, setReportTenantId] = useState('')
+  const [reportTenancyId, setReportTenancyId] = useState('')
+  const [reportFrom, setReportFrom] = useState('')
+  const [reportTo, setReportTo] = useState('')
+  const [reportMonth, setReportMonth] = useState('')
+  const [reportStatus, setReportStatus] = useState('')
+  const [reportPropertyType, setReportPropertyType] = useState('')
+  const [reportTenancyStatus, setReportTenancyStatus] = useState('')
+  const [reportAgingBucket, setReportAgingBucket] = useState('')
+  const [reportAsOfDate, setReportAsOfDate] = useState('')
+  const [includePaidAccounts, setIncludePaidAccounts] = useState(false)
+
+  const [propertyDraft, setPropertyDraft] = useState<PropertyDraft>(() => emptyPropertyDraft())
+  const [tenantDraft, setTenantDraft] = useState<TenantDraft>(() => emptyTenantDraft())
+  const [renovationDraft, setRenovationDraft] = useState<RenovationDraft>(() => emptyRenovationDraft())
+  const [tenancyDraft, setTenancyDraft] = useState<TenancyDraft>(() => emptyTenancyDraft())
+
+  useEffect(() => {
+    saveState(state)
+  }, [state])
+
+  const filteredProperties = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return state.properties
+    return state.properties.filter((property) =>
+      [
+        property.serialNumber,
+        property.address.unitNumber,
+        property.address.streetAddress,
+        property.address.cityState,
+        property.projectName,
+        property.developerName,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    )
+  }, [query, state.properties])
+
+  const selectedProperty = state.properties.find((property) => property.id === selectedPropertyId) || null
+  const selectedTenancy = state.tenancies.find((tenancy) => tenancy.id === selectedTenancyId) || state.tenancies[0] || null
+  const effectiveSelectedTenancyId = selectedTenancy?.id || null
+  const selectedPropertyTenancies = state.tenancies.filter((tenancy) => tenancy.propertyId === selectedPropertyId)
+  const lateCount = state.tenancies.filter((tenancy) => tenancy.rentalTerms.lateCollectionFlag).length
+  const expiringCount = state.tenancies.filter((tenancy) => getExpiringWithinDays(tenancy, 30)).length
+  const totalGross = state.tenancies.reduce((acc, tenancy) => acc + tenancy.rentalTerms.cumulativeGross, 0)
+  const totalNet = state.tenancies.reduce((acc, tenancy) => acc + tenancy.rentalTerms.cumulativeNet, 0)
+  const activeTenancies = state.tenancies.filter((tenancy) => !tenancy.closedEarly && tenancy.status !== 'Expired')
+
+  const filteredTenancies = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return state.tenancies.filter((tenancy) => {
+      const tenant = getTenantForTenancy(state, tenancy)
+      const property = getPropertyForTenancy(state, tenancy)
+      const status = getTenancyDisplayStatus(tenancy)
+      const matchesFilter = rentFilter === 'All' || status === rentFilter
+      const matchesQuery =
+        !q ||
+        [
+          tenant?.name,
+          tenant?.email,
+          tenant?.mobile,
+          property?.serialNumber,
+          property?.projectName,
+          property?.address.unitNumber,
+          property?.address.streetAddress,
+          property?.address.cityState,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(q)
+      return matchesFilter && matchesQuery
+    })
+  }, [query, rentFilter, state])
+
+  const reportPropertyOptions = state.properties.map((property) => ({
+    label: `${property.serialNumber} - ${property.address.streetAddress}`,
+    value: property.id,
+  }))
+
+  const reportTenantOptions = state.tenants.map((tenant) => ({
+    label: tenant.name,
+    value: tenant.id,
+  }))
+
+  const reportTenancyOptions = state.tenancies
+    .filter((tenancy) => (!reportPropertyId ? true : tenancy.propertyId === reportPropertyId))
+    .filter((tenancy) => (!reportTenantId ? true : tenancy.tenantId === reportTenantId))
+    .map((tenancy) => {
+      const tenant = state.tenants.find((item) => item.id === tenancy.tenantId)
+      return {
+        label: `${tenant?.name || 'Unknown'} (${tenancy.id.slice(0, 6)})`,
+        value: tenancy.id,
+      }
+    })
+
+  const openReport = (report: ReportKey) => {
+    setActiveReport(report)
+    setReportPropertyId(selectedPropertyId || state.properties[0]?.id || '')
+    setReportViewerOpen(true)
+  }
+
+  const resetDemoData = () => {
+    const demoState = seedDemoState()
+    setState(demoState)
+    setSelectedPropertyId(demoState.properties[0]?.id || null)
+    setSelectedTenancyId(demoState.tenancies[0]?.id || null)
+    setRentFilter('All')
+    setQuery('')
+  }
+
+  const createProperty = () => {
+    if (!propertyDraft.serialNumber || !propertyDraft.address.streetAddress) return
+    const property: Property = {
+      id: id(),
+      serialNumber: propertyDraft.serialNumber,
+      address: propertyDraft.address,
+      kind: propertyDraft.kind,
+      ownership: propertyDraft.ownership,
+      spaPrice: Number(propertyDraft.spaPrice || 0),
+      bookValue: Number(propertyDraft.bookValue || 0),
+      marketValue: Number(propertyDraft.marketValue || 0),
+      projectName: propertyDraft.projectName,
+      developerName: propertyDraft.developerName,
+      tenancyAgreement: propertyDraft.agreementFileName
+        ? {
+            id: id(),
+            label: 'Tenancy Agreement',
+            fileName: propertyDraft.agreementFileName,
+            uploadedAt: new Date().toISOString(),
+          }
+        : undefined,
+      renovations: [],
+    }
+    setState((prev) => ({ ...prev, properties: [property, ...prev.properties] }))
+    setSelectedPropertyId(property.id)
+    setPropertyDraft(emptyPropertyDraft())
+    setPropertyDrawer(false)
+  }
+
+  const createTenant = () => {
+    if (!tenantDraft.name || !tenantDraft.nricPassport) return
+    const tenant: Tenant = {
+      id: id(),
+      name: tenantDraft.name,
+      nricPassport: tenantDraft.nricPassport,
+      email: tenantDraft.email,
+      mobile: tenantDraft.mobile,
+    }
+    setState((prev) => ({ ...prev, tenants: [tenant, ...prev.tenants] }))
+    setTenantDraft(emptyTenantDraft())
+    setTenantDrawer(false)
+  }
+
+  const createTenancy = () => {
+    if (!selectedPropertyId || !tenancyDraft.tenantId || !tenancyDraft.expirationDate) return
+    const tenancy: Tenancy = {
+      id: id(),
+      propertyId: selectedPropertyId,
+      tenantId: tenancyDraft.tenantId,
+      commencementDate: tenancyDraft.commencementDate,
+      keyCollectionDate: tenancyDraft.keyCollectionDate,
+      moveInDate: tenancyDraft.moveInDate,
+      expirationDate: tenancyDraft.expirationDate,
+      tenure: tenancyDraft.tenure,
+      airSelangorAccount: tenancyDraft.airSelangorAccount,
+      tnbAccount: tenancyDraft.tnbAccount,
+      tmAccount: tenancyDraft.tmAccount,
+      closedEarly: false,
+      status: deriveTenancyStatus(tenancyDraft),
+      rentalTerms: tenancyDraft.rentalTerms,
+      deductions: tenancyDraft.deductions,
+    }
+    setState((prev) => ({ ...prev, tenancies: [tenancy, ...prev.tenancies] }))
+    setSelectedTenancyId(tenancy.id)
+    setTenancyDraft(emptyTenancyDraft())
+    setTenancyDrawer(false)
+  }
+
+  const createRenovationItem = () => {
+    if (!selectedPropertyId || !renovationDraft.description) return
+    setState((prev) => ({
+      ...prev,
+      properties: prev.properties.map((property) => {
+        if (property.id !== selectedPropertyId) return property
+        if (property.renovations.length >= 10) return property
+        return {
+          ...property,
+          renovations: [
+            ...property.renovations,
+            {
+              id: id(),
+              amountPaid: Number(renovationDraft.amountPaid || 0),
+              paymentDate: renovationDraft.paymentDate,
+              invoiceNumber: renovationDraft.invoiceNumber,
+              description: renovationDraft.description,
+              depreciationPeriod: renovationDraft.depreciationPeriod,
+              attachmentName: renovationDraft.attachmentName || undefined,
+            },
+          ],
+        }
+      }),
+    }))
+    setRenovationDraft(emptyRenovationDraft())
+    setRenovationDrawer(false)
+  }
+
+  const closeTenancyEarly = (tenancyId: string) => {
+    setState((prev) => ({
+      ...prev,
+      tenancies: prev.tenancies.map((tenancy) =>
+        tenancy.id === tenancyId ? { ...tenancy, closedEarly: true, status: 'Closed Early' } : tenancy,
+      ),
+    }))
+  }
+
+  const statementRows = useMemo(
+    () =>
+      buildStatementOfAccount(state, {
+        propertyId: reportPropertyId || undefined,
+        tenantId: reportTenantId || undefined,
+        tenancyId: reportTenancyId || undefined,
+        from: reportFrom || undefined,
+        to: reportTo || undefined,
+        status: reportStatus || undefined,
+      }),
+    [reportFrom, reportPropertyId, reportStatus, reportTenantId, reportTenancyId, reportTo, state],
+  )
+
+  const profitLoss = useMemo(
+    () => buildProfitLoss(state.tenancies, { propertyId: reportPropertyId || undefined, tenantId: reportTenantId || undefined, tenancyId: reportTenancyId || undefined }),
+    [reportPropertyId, reportTenantId, reportTenancyId, state.tenancies],
+  )
+
+  const cashAccount = useMemo(
+    () =>
+      buildCashAccount(state, {
+        propertyId: reportPropertyId || undefined,
+        tenancyId: reportTenancyId || undefined,
+        from: reportFrom || undefined,
+        to: reportTo || undefined,
+        month: reportMonth || undefined,
+      }),
+    [reportFrom, reportMonth, reportPropertyId, reportTenancyId, reportTo, state],
+  )
+
+  const monthlyCollectionRows = useMemo(
+    () =>
+      buildStatementOfAccount(state, {
+        propertyId: reportPropertyId || undefined,
+        tenantId: reportTenantId || undefined,
+        from: reportMonth ? `${reportMonth}-01` : reportFrom || undefined,
+        to: reportMonth ? `${reportMonth}-31` : reportTo || undefined,
+      }),
+    [reportFrom, reportMonth, reportPropertyId, reportTenantId, reportTo, state],
+  )
+
+  const arrearsRows = useMemo(() => {
+    const asOf = reportAsOfDate || new Date().toISOString().slice(0, 10)
+    return buildStatementOfAccount(state, {
+      propertyId: reportPropertyId || undefined,
+      tenantId: reportTenantId || undefined,
+      tenancyId: reportTenancyId || undefined,
+    })
+      .map((row) => {
+        const daysLate = calculateDaysLate(row.expectedCollectionDate, row.actualCollectionDate, asOf)
+        const outstanding = Math.max(0, row.outstandingAmount)
+        return {
+          tenant: row.tenantName,
+          property: row.propertyAddress,
+          dueDate: row.expectedCollectionDate,
+          expectedAmount: row.monthlyGrossRental + row.surcharge,
+          amountCollected: row.amountCollected,
+          outstandingAmount: outstanding,
+          daysLate,
+          agingBucket: calculateAgingBucket(daysLate),
+          lastPaymentDate: row.actualCollectionDate || '-',
+          contactInfo: state.tenants.find((t) => t.name === row.tenantName)?.mobile || '-',
+          status: row.status,
+        }
+      })
+      .filter((row) => (includePaidAccounts ? true : row.outstandingAmount > 0 || row.daysLate > 0))
+      .filter((row) => (reportStatus ? row.status === reportStatus : true))
+      .filter((row) => (reportAgingBucket ? row.agingBucket === reportAgingBucket : true))
+  }, [
+    includePaidAccounts,
+    reportAgingBucket,
+    reportAsOfDate,
+    reportPropertyId,
+    reportStatus,
+    reportTenantId,
+    reportTenancyId,
+    state,
+  ])
+
+  const rentRollRows = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return state.tenancies
+      .filter((tenancy) => (!reportPropertyId ? true : tenancy.propertyId === reportPropertyId))
+      .filter((tenancy) => (!reportTenantId ? true : tenancy.tenantId === reportTenantId))
+      .filter((tenancy) => (!reportTenancyStatus ? true : tenancy.status === reportTenancyStatus))
+      .map((tenancy) => {
+        const property = state.properties.find((p) => p.id === tenancy.propertyId)
+        const tenant = state.tenants.find((t) => t.id === tenancy.tenantId)
+        if (reportPropertyType && property?.kind !== reportPropertyType) return null
+        const daysToExpiry = calculateDaysLate(today, tenancy.expirationDate) * -1
+        return {
+          propertySerial: property?.serialNumber || '-',
+          propertyAddress: property ? `${property.address.streetAddress}, ${property.address.cityState}` : '-',
+          propertyType: property?.kind || '-',
+          tenantName: tenant?.name || '-',
+          tenancyStartDate: tenancy.commencementDate,
+          moveInDate: tenancy.moveInDate,
+          expiryDate: tenancy.expirationDate,
+          tenure: tenancy.tenure,
+          monthlyGrossRental: tenancy.rentalTerms.monthlyGross,
+          netRental: tenancy.rentalTerms.monthlyNet,
+          depositHeld: tenancy.rentalTerms.rentalDeposit,
+          collectionDate: tenancy.rentalTerms.dateOfCollection,
+          tenancyStatus: tenancy.status,
+          daysToExpiry,
+          utilityAccounts: [tenancy.airSelangorAccount, tenancy.tnbAccount, tenancy.tmAccount].filter(Boolean).length,
+        }
+      })
+      .filter(Boolean) as Record<string, unknown>[]
+  }, [
+    reportPropertyId,
+    reportPropertyType,
+    reportTenantId,
+    reportTenancyStatus,
+    state.properties,
+    state.tenancies,
+    state.tenants,
+  ])
+
+  const depositRows = useMemo(() => {
+    const grouped = state.depositTransactions.reduce<Record<string, DepositTransaction[]>>((acc, tx) => {
+      if (!acc[tx.tenancyId]) acc[tx.tenancyId] = []
+      acc[tx.tenancyId].push(tx)
+      return acc
+    }, {})
+    return Object.entries(grouped)
+      .map(([tenancyId, txs]) => {
+        const tenancy = state.tenancies.find((t) => t.id === tenancyId)
+        if (!tenancy) return null
+        const property = state.properties.find((p) => p.id === tenancy.propertyId)
+        const tenant = state.tenants.find((t) => t.id === tenancy.tenantId)
+        if (reportPropertyId && tenancy.propertyId !== reportPropertyId) return null
+        if (reportTenantId && tenancy.tenantId !== reportTenantId) return null
+        if (reportTenancyId && tenancy.id !== reportTenancyId) return null
+        const received = txs.filter((tx) => tx.type === 'Received').reduce((acc, tx) => acc + tx.amount, 0)
+        const refunded = txs.filter((tx) => tx.type === 'Refunded').reduce((acc, tx) => acc + tx.amount, 0)
+        const applied = txs.filter((tx) => tx.type === 'Applied').reduce((acc, tx) => acc + tx.amount, 0)
+        const forfeited = txs.filter((tx) => tx.type === 'Forfeited').reduce((acc, tx) => acc + tx.amount, 0)
+        const balanceHeld = calculateDepositBalance(txs)
+        return {
+          tenant: tenant?.name || '-',
+          property: property?.address.streetAddress || '-',
+          tenancy: tenancy.id,
+          depositReceived: received,
+          amountRefunded: refunded,
+          amountApplied: applied,
+          amountForfeited: forfeited,
+          balanceHeld,
+          status: balanceHeld > 0 ? 'Active' : 'Settled',
+        }
+      })
+      .filter(Boolean) as Record<string, unknown>[]
+  }, [reportPropertyId, reportTenantId, reportTenancyId, state.depositTransactions, state.properties, state.tenancies, state.tenants])
+
+  const expenseRows = useMemo(() => {
+    const asOf = reportAsOfDate || new Date().toISOString().slice(0, 10)
+    const baseRows = state.expenseTransactions
+      .filter((tx) => (!reportPropertyId ? true : tx.propertyId === reportPropertyId))
+      .filter((tx) => (!reportTenancyId ? true : tx.tenancyId === reportTenancyId))
+      .filter((tx) => (!reportFrom ? true : tx.datePaid >= reportFrom))
+      .filter((tx) => (!reportTo ? true : tx.datePaid <= reportTo))
+      .map((tx) => ({
+        propertySerial: state.properties.find((p) => p.id === tx.propertyId)?.serialNumber || '-',
+        tenancyId: tx.tenancyId || '-',
+        expenseType: tx.expenseType,
+        amountPaid: tx.amount,
+        datePaid: tx.datePaid,
+        invoiceNumber: tx.invoiceNumber || '-',
+        description: tx.description || '-',
+        depreciationPeriod: '-',
+        monthlyDepreciation: 0,
+        accumulatedDepreciation: 0,
+        remainingUndepreciatedAmount: 0,
+      }))
+    const renovationRows = state.properties
+      .filter((property) => (!reportPropertyId ? true : property.id === reportPropertyId))
+      .flatMap((property) =>
+        property.renovations.map((renovation) => {
+          const monthlyDepreciation = calculateMonthlyDepreciation(renovation.amountPaid, renovation.depreciationPeriod)
+          const accumulatedDepreciation = calculateAccumulatedDepreciation(
+            monthlyDepreciation,
+            renovation.paymentDate,
+            asOf,
+          )
+          return {
+            propertySerial: property.serialNumber,
+            tenancyId: '-',
+            expenseType: 'Renovation',
+            amountPaid: renovation.amountPaid,
+            datePaid: renovation.paymentDate,
+            invoiceNumber: renovation.invoiceNumber,
+            description: renovation.description,
+            depreciationPeriod: `${renovation.depreciationPeriod} years`,
+            monthlyDepreciation,
+            accumulatedDepreciation,
+            remainingUndepreciatedAmount: calculateRemainingUndepreciatedAmount(
+              renovation.amountPaid,
+              accumulatedDepreciation,
+            ),
+          }
+        }),
+      )
+    return [...baseRows, ...renovationRows]
+  }, [reportAsOfDate, reportFrom, reportPropertyId, reportTenancyId, reportTo, state.expenseTransactions, state.properties])
+
+  return (
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
+      <div className="flex min-h-screen">
+        <aside className="hidden w-72 border-r border-slate-200/80 bg-[var(--surface)] p-5 lg:block">
+          <h1 className="mb-1 text-xl font-semibold">Rental Operations</h1>
+          <p className="mb-8 text-sm text-[var(--muted)]">Properties and tenancies cockpit</p>
+          <nav className="space-y-1">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setSection(item.id)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${section === item.id ? 'bg-[var(--primary)] text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+              >
+                <item.icon size={16} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+        <main className="w-full">
+          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+            <div className="flex items-center gap-3 px-4 py-3 lg:px-8">
+              <button className="rounded-md p-2 hover:bg-slate-100 lg:hidden" onClick={() => setShowMobileNav(true)}>
+                <Menu size={18} />
+              </button>
+              <div className="hidden items-center gap-2 text-sm text-slate-600 md:flex">
+                <Bell size={16} />
+                <span>{lateCount} late</span>
+              </div>
+              <div className="relative max-w-xl flex-1">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search serial, address, project, developer"
+                  className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none ring-[var(--primary)] focus:ring-2"
+                />
+              </div>
+              <button
+                onClick={() => setPropertyDrawer(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-dark)]"
+              >
+                <Plus size={15} />
+                Add Property
+              </button>
+              <button
+                onClick={resetDemoData}
+                className="hidden rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:inline-flex"
+              >
+                Reset demo data
+              </button>
+            </div>
+          </header>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={section}
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={reduceMotion ? {} : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="px-4 py-6 lg:px-8"
+            >
+              {section === 'overview' && (
+                <section className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Metric label="Properties" value={String(state.properties.length)} icon={Building2} />
+                    <Metric label="Active Tenancies" value={String(state.tenancies.length)} icon={Users} />
+                    <Metric label="Late Collections" value={String(lateCount)} icon={AlertTriangle} />
+                    <Metric label="Expiring Soon" value={String(expiringCount)} icon={CalendarClock} />
+                  </div>
+                  <div className="grid gap-4 xl:grid-cols-3">
+                    <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5">
+                      <h2 className="mb-1 text-base font-semibold">Portfolio Cash Snapshot</h2>
+                      <p className="mb-4 text-sm text-[var(--muted)]">
+                        Displayed as placeholders until formula implementation.
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <DataBlock label="Cumulative Gross Rental" value={currency(totalGross)} />
+                        <DataBlock label="Cumulative Net Rental" value={currency(totalNet)} />
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <h2 className="mb-4 text-base font-semibold">Quick Actions</h2>
+                      <div className="space-y-2">
+                        <QuickButton text="Create Tenant" onClick={() => setTenantDrawer(true)} />
+                        <QuickButton text="Open Property Reports" onClick={() => setSection('reports')} />
+                        <QuickButton
+                          text="Setup Tenancy"
+                          onClick={() => setTenancyDrawer(true)}
+                          disabled={!selectedPropertyId}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {section === 'properties' && (
+                <section className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
+                  <div className="rounded-2xl border border-slate-200 bg-white">
+                    <div className="border-b border-slate-200 px-4 py-3">
+                      <h2 className="text-base font-semibold">Properties</h2>
+                    </div>
+                    <div className="max-h-[65vh] overflow-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-slate-50 text-left">
+                          <tr>
+                            <th className="px-4 py-2">Serial</th>
+                            <th className="px-4 py-2">Address</th>
+                            <th className="px-4 py-2">Type</th>
+                            <th className="px-4 py-2">Book / Market</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredProperties.map((property) => (
+                            <tr
+                              key={property.id}
+                              onClick={() => setSelectedPropertyId(property.id)}
+                              className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${selectedPropertyId === property.id ? 'bg-cyan-50' : ''}`}
+                            >
+                              <td className="px-4 py-3 font-medium">{property.serialNumber}</td>
+                              <td className="px-4 py-3">
+                                {property.address.unitNumber}, {property.address.streetAddress}
+                              </td>
+                              <td className="px-4 py-3">
+                                {property.kind} / {property.ownership}
+                              </td>
+                              <td className="px-4 py-3">
+                                {currency(property.bookValue)} / {currency(property.marketValue)}
+                              </td>
+                            </tr>
+                          ))}
+                          {!filteredProperties.length && (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-8 text-center text-[var(--muted)]">
+                                No properties yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h2 className="mb-3 text-base font-semibold">Property Detail</h2>
+                    {!selectedProperty ? (
+                      <p className="text-sm text-[var(--muted)]">Select a property to view tabs and interactions.</p>
+                    ) : (
+                      <Tabs.Root defaultValue="property">
+                        <Tabs.List className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1">
+                          {['property', 'tenants', 'deductions', 'reports'].map((tab) => (
+                            <Tabs.Trigger
+                              key={tab}
+                              value={tab}
+                              className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-white"
+                            >
+                              {tab[0].toUpperCase() + tab.slice(1)}
+                            </Tabs.Trigger>
+                          ))}
+                        </Tabs.List>
+                        <Tabs.Content value="property" className="space-y-3 text-sm">
+                          <DataLine label="Project">{selectedProperty.projectName || '-'}</DataLine>
+                          <DataLine label="Developer">{selectedProperty.developerName || '-'}</DataLine>
+                          <DataLine label="SPA Price">{currency(selectedProperty.spaPrice)}</DataLine>
+                          <DataLine label="Agreement PDF">
+                            {selectedProperty.tenancyAgreement?.fileName || 'Not attached'}
+                          </DataLine>
+                          <div className="pt-2">
+                            <button
+                              onClick={() => setRenovationDrawer(true)}
+                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
+                            >
+                              Add Renovation / Refurbishment Item
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {selectedProperty.renovations.map((renovation) => (
+                              <div key={renovation.id} className="rounded-lg border border-slate-200 p-3">
+                                <p className="font-medium">{renovation.description}</p>
+                                <p className="text-xs text-[var(--muted)]">
+                                  {currency(renovation.amountPaid)} | {renovation.paymentDate || 'No date'} |{' '}
+                                  {renovation.depreciationPeriod} years
+                                </p>
+                              </div>
+                            ))}
+                            {!selectedProperty.renovations.length && (
+                              <p className="text-xs text-[var(--muted)]">No renovation items yet (max 10).</p>
+                            )}
+                          </div>
+                        </Tabs.Content>
+                        <Tabs.Content value="tenants" className="space-y-3 text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setTenantDrawer(true)}
+                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
+                            >
+                              Create Tenant
+                            </button>
+                            <button
+                              onClick={() => setTenancyDrawer(true)}
+                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
+                            >
+                              Create Tenancy
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {selectedPropertyTenancies.map((tenancy) => {
+                              const tenant = state.tenants.find((item) => item.id === tenancy.tenantId)
+                              return (
+                                <div key={tenancy.id} className="rounded-lg border border-slate-200 p-3">
+                                  <p className="font-medium">{tenant?.name || 'Unknown tenant'}</p>
+                                  <p className="text-xs text-[var(--muted)]">
+                                    Status: {tenancy.status} | Net: {currency(tenancy.rentalTerms.monthlyNet)}
+                                  </p>
+                                  {!tenancy.closedEarly && (
+                                    <button
+                                      onClick={() => closeTenancyEarly(tenancy.id)}
+                                      className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
+                                    >
+                                      Close Early
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            {!selectedPropertyTenancies.length && (
+                              <p className="text-xs text-[var(--muted)]">No tenancy records yet.</p>
+                            )}
+                          </div>
+                        </Tabs.Content>
+                        <Tabs.Content value="deductions" className="space-y-2 text-sm">
+                          {selectedPropertyTenancies.map((tenancy) => (
+                            <div key={tenancy.id} className="rounded-lg border border-slate-200 p-3">
+                              <p className="mb-2 font-medium">Tenancy {tenancy.id.slice(0, 6)}</p>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <DataTile label="Maintenance" value={currency(tenancy.deductions.maintenanceCharges)} />
+                                <DataTile label="Quit Rent" value={currency(tenancy.deductions.quitRent)} />
+                                <DataTile label="Assessment" value={currency(tenancy.deductions.assessment)} />
+                                <DataTile label="Utility" value={currency(tenancy.deductions.utilityCharges)} />
+                                <DataTile
+                                  label="Fire Insurance"
+                                  value={currency(tenancy.deductions.fireInsurancePremium)}
+                                />
+                                <DataTile label="Sinking Fund" value={currency(tenancy.deductions.sinkingFundPayment)} />
+                                <DataTile label="Misc Charges" value={currency(tenancy.deductions.miscellaneousCharges)} />
+                                <DataTile label="Cost of Funds" value={currency(tenancy.deductions.bankCostOfFunds)} />
+                                <DataTile label="Depreciation" value={currency(tenancy.deductions.depreciationCost)} />
+                              </div>
+                            </div>
+                          ))}
+                          {!selectedPropertyTenancies.length && (
+                            <p className="text-xs text-[var(--muted)]">
+                              Deductions will appear once tenancies are created.
+                            </p>
+                          )}
+                        </Tabs.Content>
+                        <Tabs.Content value="reports" className="space-y-2 text-sm">
+                          <button
+                            onClick={() => {
+                              setSection('reports')
+                              setReportPropertyId(selectedProperty.id)
+                            }}
+                            className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
+                          >
+                            Open Property Reports
+                          </button>
+                          <p className="text-xs text-[var(--muted)]">
+                            Report module includes Statement of Account, P&L, Cash Account, collections, arrears,
+                            rent roll, deposit register, and depreciation schedule.
+                          </p>
+                        </Tabs.Content>
+                      </Tabs.Root>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {section === 'tenants' && (
+                <TenantWorkspace
+                  state={state}
+                  tenancies={filteredTenancies}
+                  selectedTenancy={selectedTenancy}
+                  selectedTenancyId={effectiveSelectedTenancyId}
+                  activeCount={activeTenancies.length}
+                  lateCount={lateCount}
+                  expiringCount={expiringCount}
+                  rentFilter={rentFilter}
+                  onFilterChange={setRentFilter}
+                  onSelectTenancy={setSelectedTenancyId}
+                  onCloseEarly={closeTenancyEarly}
+                />
+              )}
+
+              {section === 'reports' && (
+                <section className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-lg font-semibold">Report Workspace</h2>
+                  </div>
+                  {(!state.properties.length || !state.tenancies.length) && (
+                    <p className="text-sm text-[var(--muted)]">
+                      Add at least one property and tenancy before generating reports.
+                    </p>
+                  )}
+                  <div className="space-y-4">
+                    <ReportGroup
+                      title="Financial Reports"
+                      cards={[
+                        {
+                          title: 'Statement of Account',
+                          description: 'Tenancy-level collections, deductions, remittances, and running balance.',
+                        },
+                        {
+                          title: 'Profit & Loss',
+                          description: 'Tenancy, property, or portfolio profitability with expense schedule.',
+                        },
+                        {
+                          title: 'Cash Account',
+                          description: 'Opening, inflow, outflow, net movement, and closing cash position.',
+                        },
+                      ]}
+                      onView={openReport}
+                    />
+                    <ReportGroup
+                      title="Collection Control"
+                      cards={[
+                        {
+                          title: 'Monthly Cash Collection',
+                          description: 'Monthly expected vs collected variance and remittance control.',
+                        },
+                        {
+                          title: 'Arrears / Late Collection Aging',
+                          description: 'Exception-focused aging buckets for unpaid, partial, and late accounts.',
+                        },
+                      ]}
+                      onView={openReport}
+                    />
+                    <ReportGroup
+                      title="Portfolio Control"
+                      cards={[
+                        {
+                          title: 'Rent Roll & Tenancy Status',
+                          description: 'Portfolio tenancy occupancy, expiry horizon, and utility indicators.',
+                        },
+                        {
+                          title: 'Deposit Register',
+                          description: 'Deposit liability and movements by tenancy.',
+                        },
+                      ]}
+                      onView={openReport}
+                    />
+                    <ReportGroup
+                      title="Cost Control"
+                      cards={[
+                        {
+                          title: 'Expense & Depreciation Schedule',
+                          description: 'Property expenses with renovation depreciation tracking.',
+                        },
+                      ]}
+                      onView={openReport}
+                    />
+                  </div>
+                </section>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+
+      <Drawer title="Add Property" open={propertyDrawer} onOpenChange={setPropertyDrawer}>
+        <FormGrid>
+          <LabeledInput
+            label="Property Serial Number (5 digits)"
+            value={propertyDraft.serialNumber}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, serialNumber: value }))}
+          />
+          <LabeledInput
+            label="Unit Number"
+            value={propertyDraft.address.unitNumber}
+            onChange={(value) =>
+              setPropertyDraft((prev) => ({
+                ...prev,
+                address: { ...prev.address, unitNumber: value },
+              }))
+            }
+          />
+          <LabeledInput
+            label="Street Address"
+            value={propertyDraft.address.streetAddress}
+            onChange={(value) =>
+              setPropertyDraft((prev) => ({
+                ...prev,
+                address: { ...prev.address, streetAddress: value },
+              }))
+            }
+          />
+          <LabeledInput
+            label="District/City/State"
+            value={propertyDraft.address.cityState}
+            onChange={(value) =>
+              setPropertyDraft((prev) => ({
+                ...prev,
+                address: { ...prev.address, cityState: value },
+              }))
+            }
+          />
+          <LabeledSelect
+            label="Highrise or Landed"
+            value={propertyDraft.kind}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, kind: value as PropertyKind }))}
+            options={['Highrise', 'Landed']}
+          />
+          <LabeledSelect
+            label="Freehold or Leasehold"
+            value={propertyDraft.ownership}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, ownership: value as Property['ownership'] }))}
+            options={['Freehold', 'Leasehold']}
+          />
+          <MoneyInput
+            label="SPA Price"
+            value={propertyDraft.spaPrice}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, spaPrice: value }))}
+          />
+          <MoneyInput
+            label="Book Value"
+            value={propertyDraft.bookValue}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, bookValue: value }))}
+          />
+          <MoneyInput
+            label="Indicated Market Value"
+            value={propertyDraft.marketValue}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, marketValue: value }))}
+          />
+          <LabeledInput
+            label="Property Project Name"
+            value={propertyDraft.projectName}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, projectName: value }))}
+          />
+          <LabeledInput
+            label="Developer Name"
+            value={propertyDraft.developerName}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, developerName: value }))}
+          />
+          <LabeledInput
+            label="Tenancy Agreement File Name (PDF metadata)"
+            value={propertyDraft.agreementFileName}
+            onChange={(value) => setPropertyDraft((prev) => ({ ...prev, agreementFileName: value }))}
+          />
+        </FormGrid>
+        <SaveButton onClick={createProperty}>Save Property</SaveButton>
+      </Drawer>
+
+      <Drawer title="Add Tenant" open={tenantDrawer} onOpenChange={setTenantDrawer}>
+        <FormGrid>
+          <LabeledInput
+            label="Name"
+            value={tenantDraft.name}
+            onChange={(value) => setTenantDraft((prev) => ({ ...prev, name: value }))}
+          />
+          <LabeledInput
+            label="NRIC / Passport Number"
+            value={tenantDraft.nricPassport}
+            onChange={(value) => setTenantDraft((prev) => ({ ...prev, nricPassport: value }))}
+          />
+          <LabeledInput
+            label="Email"
+            value={tenantDraft.email}
+            onChange={(value) => setTenantDraft((prev) => ({ ...prev, email: value }))}
+          />
+          <LabeledInput
+            label="Mobile Number"
+            value={tenantDraft.mobile}
+            onChange={(value) => setTenantDraft((prev) => ({ ...prev, mobile: value }))}
+          />
+        </FormGrid>
+        <SaveButton onClick={createTenant}>Save Tenant</SaveButton>
+      </Drawer>
+
+      <Drawer title="Add Tenancy" open={tenancyDrawer} onOpenChange={setTenancyDrawer}>
+        <FormGrid>
+          <LabeledSelect
+            label="Select Tenant"
+            value={tenancyDraft.tenantId}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, tenantId: value }))}
+            options={state.tenants.map((tenant) => ({ label: tenant.name, value: tenant.id }))}
+            placeholder={state.tenants.length ? 'Choose tenant' : 'No tenants yet'}
+          />
+          <LabeledInput
+            label="Tenancy Commencement Date"
+            value={tenancyDraft.commencementDate}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, commencementDate: value }))}
+            type="date"
+          />
+          <LabeledInput
+            label="Date of Key Collection"
+            value={tenancyDraft.keyCollectionDate}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, keyCollectionDate: value }))}
+            type="date"
+          />
+          <LabeledInput
+            label="Move-In Date"
+            value={tenancyDraft.moveInDate}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, moveInDate: value }))}
+            type="date"
+          />
+          <LabeledInput
+            label="Tenancy Expiration Date"
+            value={tenancyDraft.expirationDate}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, expirationDate: value }))}
+            type="date"
+          />
+          <LabeledInput
+            label="Tenancy Tenure"
+            value={tenancyDraft.tenure}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, tenure: value }))}
+          />
+          <LabeledInput
+            label="Air Selangor Account"
+            value={tenancyDraft.airSelangorAccount}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, airSelangorAccount: value }))}
+          />
+          <LabeledInput
+            label="TNB Account"
+            value={tenancyDraft.tnbAccount}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, tnbAccount: value }))}
+          />
+          <LabeledInput
+            label="TM Account"
+            value={tenancyDraft.tmAccount}
+            onChange={(value) => setTenancyDraft((prev) => ({ ...prev, tmAccount: value }))}
+          />
+
+          <MoneyInput
+            label="Rental Deposit"
+            value={tenancyDraft.rentalTerms.rentalDeposit}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, rentalDeposit: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Surcharge"
+            value={tenancyDraft.rentalTerms.surcharge}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, surcharge: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Monthly Gross Rental"
+            value={tenancyDraft.rentalTerms.monthlyGross}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, monthlyGross: value },
+              }))
+            }
+          />
+          <LabeledInput
+            label="Date of Collection"
+            value={tenancyDraft.rentalTerms.dateOfCollection}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, dateOfCollection: value },
+              }))
+            }
+            type="date"
+          />
+          <MoneyInput
+            label="Service/Admin Fee + SST Deduction"
+            value={tenancyDraft.rentalTerms.serviceFeeDeduction}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, serviceFeeDeduction: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Monthly Net Rental"
+            value={tenancyDraft.rentalTerms.monthlyNet}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, monthlyNet: value },
+              }))
+            }
+          />
+          <LabeledInput
+            label="Date Net Rental Remitted"
+            value={tenancyDraft.rentalTerms.dateOfNetRemitted}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, dateOfNetRemitted: value },
+              }))
+            }
+            type="date"
+          />
+          <MoneyInput
+            label="Cumulative Gross Rental"
+            value={tenancyDraft.rentalTerms.cumulativeGross}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, cumulativeGross: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Cumulative Net Rental"
+            value={tenancyDraft.rentalTerms.cumulativeNet}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                rentalTerms: { ...prev.rentalTerms, cumulativeNet: value },
+              }))
+            }
+          />
+          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={tenancyDraft.rentalTerms.lateCollectionFlag}
+              onChange={(event) =>
+                setTenancyDraft((prev) => ({
+                  ...prev,
+                  rentalTerms: { ...prev.rentalTerms, lateCollectionFlag: event.target.checked },
+                }))
+              }
+            />
+            Late collection flagged
+          </label>
+
+          <MoneyInput
+            label="Maintenance Charges"
+            value={tenancyDraft.deductions.maintenanceCharges}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, maintenanceCharges: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Quit Rent"
+            value={tenancyDraft.deductions.quitRent}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, quitRent: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Assessment"
+            value={tenancyDraft.deductions.assessment}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, assessment: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Utility Charges"
+            value={tenancyDraft.deductions.utilityCharges}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, utilityCharges: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Fire Insurance Premium"
+            value={tenancyDraft.deductions.fireInsurancePremium}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, fireInsurancePremium: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Sinking Fund Payment"
+            value={tenancyDraft.deductions.sinkingFundPayment}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, sinkingFundPayment: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Other Miscellaneous Charges"
+            value={tenancyDraft.deductions.miscellaneousCharges}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, miscellaneousCharges: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Cost of Funds (Bank)"
+            value={tenancyDraft.deductions.bankCostOfFunds}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, bankCostOfFunds: value },
+              }))
+            }
+          />
+          <MoneyInput
+            label="Depreciation Cost"
+            value={tenancyDraft.deductions.depreciationCost}
+            onChange={(value) =>
+              setTenancyDraft((prev) => ({
+                ...prev,
+                deductions: { ...prev.deductions, depreciationCost: value },
+              }))
+            }
+          />
+        </FormGrid>
+        <SaveButton onClick={createTenancy}>Save Tenancy</SaveButton>
+      </Drawer>
+
+      <Drawer title="Add Renovation Item" open={renovationDrawer} onOpenChange={setRenovationDrawer}>
+        <p className="mb-3 rounded-lg bg-slate-50 p-2 text-xs text-[var(--muted)]">Maximum 10 items per property.</p>
+        <FormGrid>
+          <MoneyInput
+            label="Amount Paid"
+            value={renovationDraft.amountPaid}
+            onChange={(value) => setRenovationDraft((prev) => ({ ...prev, amountPaid: value }))}
+          />
+          <LabeledInput
+            label="Date of Payment"
+            value={renovationDraft.paymentDate}
+            onChange={(value) => setRenovationDraft((prev) => ({ ...prev, paymentDate: value }))}
+            type="date"
+          />
+          <LabeledInput
+            label="Invoice Number"
+            value={renovationDraft.invoiceNumber}
+            onChange={(value) => setRenovationDraft((prev) => ({ ...prev, invoiceNumber: value }))}
+          />
+          <LabeledInput
+            label="Cost Description"
+            value={renovationDraft.description}
+            onChange={(value) => setRenovationDraft((prev) => ({ ...prev, description: value }))}
+          />
+          <LabeledSelect
+            label="Depreciation Period (years)"
+            value={String(renovationDraft.depreciationPeriod)}
+            onChange={(value) =>
+              setRenovationDraft((prev) => ({
+                ...prev,
+                depreciationPeriod: Number(value) as DepreciationPeriod,
+              }))
+            }
+            options={['1', '3', '5', '10']}
+          />
+          <LabeledInput
+            label="Invoice Attachment Name (metadata)"
+            value={renovationDraft.attachmentName}
+            onChange={(value) => setRenovationDraft((prev) => ({ ...prev, attachmentName: value }))}
+          />
+        </FormGrid>
+        <SaveButton onClick={createRenovationItem}>Save Renovation Item</SaveButton>
+      </Drawer>
+
+      <Dialog.Root open={reportViewerOpen} onOpenChange={setReportViewerOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-slate-900/25" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 h-[86vh] w-[96vw] max-w-6xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white shadow-2xl focus:outline-none">
+            <div className="flex h-full flex-col">
+              <div className="border-b border-slate-200 px-5 py-4">
+                <Dialog.Title className="text-lg font-semibold">{activeReport}</Dialog.Title>
+              </div>
+              <div className="grid gap-3 border-b border-slate-200 px-5 py-4 md:grid-cols-4">
+                <LabeledSelect label="Property" value={reportPropertyId} onChange={setReportPropertyId} options={reportPropertyOptions} placeholder="All properties" />
+                <LabeledSelect label="Tenant" value={reportTenantId} onChange={setReportTenantId} options={reportTenantOptions} placeholder="All tenants" />
+                <LabeledSelect label="Tenancy" value={reportTenancyId} onChange={setReportTenancyId} options={reportTenancyOptions} placeholder="All tenancies" />
+                <LabeledSelect
+                  label="Status"
+                  value={reportStatus}
+                  onChange={setReportStatus}
+                  options={['', 'Paid', 'Unpaid', 'Partial', 'Late']}
+                  placeholder="All statuses"
+                />
+                <LabeledSelect
+                  label="Property Type"
+                  value={reportPropertyType}
+                  onChange={setReportPropertyType}
+                  options={['', 'Highrise', 'Landed']}
+                  placeholder="All types"
+                />
+                <LabeledSelect
+                  label="Tenancy Status"
+                  value={reportTenancyStatus}
+                  onChange={setReportTenancyStatus}
+                  options={['', 'Active', 'Expiring', 'Late Collection', 'Closed Early', 'Expired']}
+                  placeholder="All tenancy statuses"
+                />
+                <LabeledSelect
+                  label="Aging Bucket"
+                  value={reportAgingBucket}
+                  onChange={setReportAgingBucket}
+                  options={['', '0-30', '31-60', '61-90', '>90']}
+                  placeholder="All buckets"
+                />
+                <LabeledInput label="Date From" value={reportFrom} onChange={setReportFrom} type="date" />
+                <LabeledInput label="Date To" value={reportTo} onChange={setReportTo} type="date" />
+                <label className="block">
+                  <span className="mb-1 block text-xs text-[var(--muted)]">Month</span>
+                  <input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-[var(--primary)] focus:ring-2" />
+                </label>
+                <LabeledInput label="As Of Date" value={reportAsOfDate} onChange={setReportAsOfDate} type="date" />
+              </div>
+              <div className="flex-1 overflow-auto px-5 py-4">
+                <ReportBody
+                  activeReport={activeReport}
+                  statementRows={statementRows.map((row) => ({ ...row }))}
+                  monthlyCollectionRows={monthlyCollectionRows.map((row) => ({ ...row }))}
+                  arrearsRows={arrearsRows}
+                  rentRollRows={rentRollRows}
+                  depositRows={depositRows}
+                  expenseRows={expenseRows}
+                  cashAccount={cashAccount}
+                  profitLoss={profitLoss}
+                  includePaidAccounts={includePaidAccounts}
+                  onToggleIncludePaid={() => setIncludePaidAccounts((prev) => !prev)}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+                <Dialog.Close className="rounded-lg border border-slate-200 px-3 py-2 text-sm">Close</Dialog.Close>
+                <button
+                  disabled={
+                    !hasRowsForReport(
+                      activeReport,
+                      statementRows.map((row) => ({ ...row })),
+                      monthlyCollectionRows.map((row) => ({ ...row })),
+                      arrearsRows,
+                      rentRollRows,
+                      depositRows,
+                      expenseRows,
+                    )
+                  }
+                  onClick={() =>
+                    exportActiveReportPdf(
+                      activeReport,
+                      statementRows.map((row) => ({ ...row })),
+                      monthlyCollectionRows.map((row) => ({ ...row })),
+                      arrearsRows,
+                      rentRollRows,
+                      depositRows,
+                      expenseRows,
+                      cashAccount,
+                      profitLoss,
+                    )
+                  }
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Export PDF
+                </button>
+                <button
+                  disabled={
+                    !hasRowsForReport(
+                      activeReport,
+                      statementRows.map((row) => ({ ...row })),
+                      monthlyCollectionRows.map((row) => ({ ...row })),
+                      arrearsRows,
+                      rentRollRows,
+                      depositRows,
+                      expenseRows,
+                    )
+                  }
+                  onClick={() =>
+                    exportActiveReportCsv(
+                      activeReport,
+                      statementRows.map((row) => ({ ...row })),
+                      monthlyCollectionRows.map((row) => ({ ...row })),
+                      arrearsRows,
+                      rentRollRows,
+                      depositRows,
+                      expenseRows,
+                      cashAccount,
+                      profitLoss,
+                    )
+                  }
+                  className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Export CSV
+                </button>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={showMobileNav} onOpenChange={setShowMobileNav}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-slate-900/25 lg:hidden" />
+          <Dialog.Content className="fixed left-0 top-0 h-full w-72 bg-white p-4 lg:hidden">
+            <Dialog.Title className="mb-3 text-base font-semibold">Navigation</Dialog.Title>
+            <div className="space-y-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setSection(item.id)
+                    setShowMobileNav(false)
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm ${section === item.id ? 'bg-[var(--primary)] text-white' : 'hover:bg-slate-100'}`}
+                >
+                  <item.icon size={16} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </div>
+  )
+}
+
+function hasRowsForReport(
+  report: ReportKey,
+  statementRows: Record<string, unknown>[],
+  monthlyCollectionRows: Record<string, unknown>[],
+  arrearsRows: Record<string, unknown>[],
+  rentRollRows: Record<string, unknown>[],
+  depositRows: Record<string, unknown>[],
+  expenseRows: Record<string, unknown>[],
+) {
+  if (report === 'Statement of Account') return statementRows.length > 0
+  if (report === 'Monthly Cash Collection') return monthlyCollectionRows.length > 0
+  if (report === 'Arrears / Late Collection Aging') return arrearsRows.length > 0
+  if (report === 'Rent Roll & Tenancy Status') return rentRollRows.length > 0
+  if (report === 'Deposit Register') return depositRows.length > 0
+  if (report === 'Expense & Depreciation Schedule') return expenseRows.length > 0
+  return true
+}
+
+function exportActiveReportCsv(
+  report: ReportKey,
+  statementRows: Record<string, unknown>[],
+  monthlyCollectionRows: Record<string, unknown>[],
+  arrearsRows: Record<string, unknown>[],
+  rentRollRows: Record<string, unknown>[],
+  depositRows: Record<string, unknown>[],
+  expenseRows: Record<string, unknown>[],
+  cashAccount: Record<string, unknown>,
+  profitLoss: Record<string, unknown>,
+) {
+  if (report === 'Statement of Account') return triggerCsvDownload('statement-of-account.csv', statementRows)
+  if (report === 'Monthly Cash Collection')
+    return triggerCsvDownload('monthly-cash-collection.csv', monthlyCollectionRows)
+  if (report === 'Arrears / Late Collection Aging') return triggerCsvDownload('arrears-aging.csv', arrearsRows)
+  if (report === 'Rent Roll & Tenancy Status') return triggerCsvDownload('rent-roll-tenancy-status.csv', rentRollRows)
+  if (report === 'Deposit Register') return triggerCsvDownload('deposit-register.csv', depositRows)
+  if (report === 'Expense & Depreciation Schedule')
+    return triggerCsvDownload('expense-depreciation-schedule.csv', expenseRows)
+  if (report === 'Cash Account') return triggerCsvDownload('cash-account.csv', [cashAccount])
+  return triggerCsvDownload('profit-loss.csv', [profitLoss])
+}
+
+function exportActiveReportPdf(
+  report: ReportKey,
+  statementRows: Record<string, unknown>[],
+  monthlyCollectionRows: Record<string, unknown>[],
+  arrearsRows: Record<string, unknown>[],
+  rentRollRows: Record<string, unknown>[],
+  depositRows: Record<string, unknown>[],
+  expenseRows: Record<string, unknown>[],
+  cashAccount: Record<string, unknown>,
+  profitLoss: Record<string, unknown>,
+) {
+  if (report === 'Statement of Account') return triggerPdfPrint('Statement of Account', statementRows)
+  if (report === 'Monthly Cash Collection') return triggerPdfPrint('Monthly Cash Collection', monthlyCollectionRows)
+  if (report === 'Arrears / Late Collection Aging')
+    return triggerPdfPrint('Arrears / Late Collection Aging', arrearsRows)
+  if (report === 'Rent Roll & Tenancy Status') return triggerPdfPrint('Rent Roll & Tenancy Status', rentRollRows)
+  if (report === 'Deposit Register') return triggerPdfPrint('Deposit Register', depositRows)
+  if (report === 'Expense & Depreciation Schedule')
+    return triggerPdfPrint('Expense & Depreciation Schedule', expenseRows)
+  if (report === 'Cash Account') return triggerPdfPrint('Cash Account', [cashAccount])
+  return triggerPdfPrint('Profit & Loss', [profitLoss])
+}
+
+function ReportGroup({
+  title,
+  cards,
+  onView,
+}: {
+  title: string
+  cards: { title: ReportKey; description: string }[]
+  onView: (report: ReportKey) => void
+}) {
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-slate-700">{title}</h3>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {cards.map((card) => (
+          <div key={card.title} className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="font-medium">{card.title}</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">{card.description}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => onView(card.title)}
+                className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50"
+              >
+                View Report
+              </button>
+              <button
+                onClick={() => onView(card.title)}
+                className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={() => onView(card.title)}
+                className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50"
+              >
+                Export PDF
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function ReportBody({
+  activeReport,
+  statementRows,
+  monthlyCollectionRows,
+  arrearsRows,
+  rentRollRows,
+  depositRows,
+  expenseRows,
+  cashAccount,
+  profitLoss,
+  includePaidAccounts,
+  onToggleIncludePaid,
+}: {
+  activeReport: ReportKey
+  statementRows: Record<string, unknown>[]
+  monthlyCollectionRows: Record<string, unknown>[]
+  arrearsRows: Record<string, unknown>[]
+  rentRollRows: Record<string, unknown>[]
+  depositRows: Record<string, unknown>[]
+  expenseRows: Record<string, unknown>[]
+  cashAccount: Record<string, unknown>
+  profitLoss: Record<string, unknown>
+  includePaidAccounts: boolean
+  onToggleIncludePaid: () => void
+}) {
+  if (activeReport === 'Profit & Loss') return <ObjectTable data={[profitLoss]} />
+  if (activeReport === 'Cash Account') return <ObjectTable data={[cashAccount]} />
+  if (activeReport === 'Statement of Account') return <ObjectTable data={statementRows} />
+  if (activeReport === 'Monthly Cash Collection') return <ObjectTable data={monthlyCollectionRows} />
+  if (activeReport === 'Arrears / Late Collection Aging') {
+    return (
+      <div className="space-y-3">
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={includePaidAccounts} onChange={onToggleIncludePaid} />
+          Include paid accounts
+        </label>
+        <ObjectTable data={arrearsRows} />
+      </div>
+    )
+  }
+  if (activeReport === 'Rent Roll & Tenancy Status') return <ObjectTable data={rentRollRows} />
+  if (activeReport === 'Deposit Register') return <ObjectTable data={depositRows} />
+  return <ObjectTable data={expenseRows} />
+}
+
+function ObjectTable({ data }: { data: Record<string, unknown>[] }) {
+  const headers = data.length ? Object.keys(data[0]) : []
+  const [sortBy, setSortBy] = useState<string>('')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  useEffect(() => {
+    if (!headers.length) {
+      setSortBy('')
+      return
+    }
+    if (!sortBy || !headers.includes(sortBy)) {
+      setSortBy(headers[0])
+    }
+  }, [headers, sortBy])
+  const sortedData = useMemo(() => {
+    if (!sortBy) return data
+    const rows = [...data]
+    rows.sort((a, b) => {
+      const av = a[sortBy]
+      const bv = b[sortBy]
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av
+      }
+      const as = String(av ?? '')
+      const bs = String(bv ?? '')
+      return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
+    })
+    return rows
+  }, [data, sortBy, sortDir])
+
+  if (!data.length) {
+    return <p className="text-sm text-[var(--muted)]">No report data for current filters.</p>
+  }
+
+  const toggleSort = (header: string) => {
+    if (sortBy !== header) {
+      setSortBy(header)
+      setSortDir('asc')
+      return
+    }
+    setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+  }
+
+  return (
+    <div className="overflow-auto rounded-xl border border-slate-200">
+      <table className="min-w-full text-sm">
+        <thead className="sticky top-0 bg-slate-50 text-left">
+          <tr>
+            {headers.map((header) => (
+              <th key={header} className="whitespace-nowrap px-3 py-2 capitalize">
+                <button
+                  onClick={() => toggleSort(header)}
+                  className="inline-flex items-center gap-1 hover:text-slate-900"
+                >
+                  {header}
+                  {sortBy === header ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </button>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sortedData.map((row, index) => (
+            <tr key={index} className="border-t border-slate-100">
+              {headers.map((header) => {
+                const value = row[header]
+                const display = typeof value === 'number' ? value.toFixed(2) : String(value ?? '-')
+                return (
+                  <td key={header} className="whitespace-nowrap px-3 py-2">
+                    {display}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TenantWorkspace({
+  state,
+  tenancies,
+  selectedTenancy,
+  selectedTenancyId,
+  activeCount,
+  lateCount,
+  expiringCount,
+  rentFilter,
+  onFilterChange,
+  onSelectTenancy,
+  onCloseEarly,
+}: {
+  state: RentalSystemState
+  tenancies: Tenancy[]
+  selectedTenancy: Tenancy | null
+  selectedTenancyId: string | null
+  activeCount: number
+  lateCount: number
+  expiringCount: number
+  rentFilter: RentFilter
+  onFilterChange: (filter: RentFilter) => void
+  onSelectTenancy: (tenancyId: string) => void
+  onCloseEarly: (tenancyId: string) => void
+}) {
+  return (
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,0.85fr)]">
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950">Active Tenancies</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Manage lease agreements and rental collection status.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <FilterSelect value={rentFilter} onChange={onFilterChange} />
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <KpiCard label="Total Active Tenants" value={String(activeCount)} helper="+3 this month" />
+          <KpiCard label="Overdue Collections" value={String(lateCount)} helper="Action required" tone="late" />
+          <KpiCard label="Expiring in 30 Days" value={String(expiringCount)} helper="Renewals pending" />
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Tenant Name</th>
+                <th className="px-4 py-3">Property / Unit</th>
+                <th className="px-4 py-3">Rent Status</th>
+                <th className="px-4 py-3">Expiry Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenancies.map((tenancy) => {
+                const tenant = getTenantForTenancy(state, tenancy)
+                const property = getPropertyForTenancy(state, tenancy)
+                const status = getTenancyDisplayStatus(tenancy)
+                const isSelected = selectedTenancyId === tenancy.id
+                return (
+                  <tr
+                    key={tenancy.id}
+                    onClick={() => onSelectTenancy(tenancy.id)}
+                    className={`cursor-pointer border-t border-slate-100 transition ${
+                      isSelected
+                        ? 'bg-slate-100'
+                        : status === 'Late'
+                          ? 'bg-red-50/70 hover:bg-red-50'
+                          : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-slate-950">{tenant?.name || 'Unknown tenant'}</p>
+                      <p className="text-xs text-[var(--muted)]">{tenant?.email || '-'}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <p>{property?.projectName || property?.address.streetAddress || '-'}</p>
+                      <p className="text-xs text-[var(--muted)]">Unit {property?.unitLabel || property?.address.unitNumber || '-'}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <StatusBadge status={status} />
+                    </td>
+                    <td className="px-4 py-4 text-slate-700">{formatDate(tenancy.expirationDate)}</td>
+                  </tr>
+                )
+              })}
+              {!tenancies.length && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-[var(--muted)]">
+                    No tenancies match the current filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <TenantInspector state={state} tenancy={selectedTenancy} onCloseEarly={onCloseEarly} />
+    </section>
+  )
+}
+
+function TenantInspector({
+  state,
+  tenancy,
+  onCloseEarly,
+}: {
+  state: RentalSystemState
+  tenancy: Tenancy | null
+  onCloseEarly: (tenancyId: string) => void
+}) {
+  if (!tenancy) {
+    return (
+      <aside className="rounded-2xl border border-slate-200 bg-white p-5">
+        <p className="text-sm text-[var(--muted)]">Select a tenancy to view tenant details.</p>
+      </aside>
+    )
+  }
+
+  const tenant = getTenantForTenancy(state, tenancy)
+  const property = getPropertyForTenancy(state, tenancy)
+  const status = getTenancyDisplayStatus(tenancy)
+  const sstEstimate = tenancy.rentalTerms.serviceFeeDeduction * 0.08
+
+  return (
+    <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-2xl font-semibold text-slate-950">{tenant?.name || 'Unknown tenant'}</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {property?.projectName || property?.address.streetAddress || '-'}, {property?.unitLabel || property?.address.unitNumber || '-'}
+            </p>
+          </div>
+          <StatusBadge status={status} />
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5">
+        <section className="rounded-xl border border-slate-200 p-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Tenant Identity</h4>
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <DataLine label="Passport / NRIC">{tenant?.nricPassport || '-'}</DataLine>
+            <DataLine label="Mobile">{tenant?.mobile || '-'}</DataLine>
+            <DataLine label="Email">{tenant?.email || '-'}</DataLine>
+            <DataLine label="Deposit">{currency(tenancy.rentalTerms.rentalDeposit)}</DataLine>
+          </div>
+        </section>
+
+        <section>
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Timeline</h4>
+          <div className="space-y-3">
+            <TimelineItem label="Commencement" value={formatDate(tenancy.commencementDate)} />
+            <TimelineItem label="Key Collection" value={formatDate(tenancy.keyCollectionDate)} />
+            <TimelineItem label="Move-in Date" value={formatDate(tenancy.moveInDate)} active />
+            <TimelineItem label="Expiry" value={formatDate(tenancy.expirationDate)} muted />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Monthly Financials
+          </div>
+          <div className="space-y-2 p-4 text-sm">
+            <DataLine label="Monthly Gross Rent">{currency(tenancy.rentalTerms.monthlyGross)}</DataLine>
+            <DataLine label="Admin Fee / Service">{currency(tenancy.rentalTerms.serviceFeeDeduction)}</DataLine>
+            <DataLine label="SST (8%)">{currency(sstEstimate)}</DataLine>
+            <DataLine label="Monthly Net Rent">{currency(tenancy.rentalTerms.monthlyNet)}</DataLine>
+          </div>
+        </section>
+
+        <section>
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Utility Accounts</h4>
+          <div className="space-y-2">
+            <UtilityRow code="TNB" label="Electricity" value={tenancy.tnbAccount} />
+            <UtilityRow code="AIR" label="Air Selangor" value={tenancy.airSelangorAccount} />
+            <UtilityRow code="TM" label="Internet" value={tenancy.tmAccount} />
+          </div>
+        </section>
+      </div>
+
+      <div className="border-t border-slate-200 p-5">
+        <button
+          disabled={tenancy.closedEarly}
+          onClick={() => onCloseEarly(tenancy.id)}
+          className="w-full rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {tenancy.closedEarly ? 'Tenancy Closed Early' : 'Early Termination'}
+        </button>
+      </div>
+    </aside>
+  )
+}
+
+function KpiCard({
+  label,
+  value,
+  helper,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  helper: string
+  tone?: 'default' | 'late'
+}) {
+  return (
+    <div className={`rounded-2xl border p-4 ${tone === 'late' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wide ${tone === 'late' ? 'text-red-700' : 'text-slate-500'}`}>{label}</p>
+      <div className="mt-5 flex items-end gap-2">
+        <p className={`text-4xl font-semibold ${tone === 'late' ? 'text-red-700' : 'text-slate-950'}`}>{value}</p>
+        <p className="pb-1 text-sm text-[var(--muted)]">{helper}</p>
+      </div>
+    </div>
+  )
+}
+
+function FilterSelect({ value, onChange }: { value: RentFilter; onChange: (value: RentFilter) => void }) {
+  return (
+    <LabeledSelect
+      label="Rent Status Filter"
+      value={value}
+      onChange={(nextValue) => onChange(nextValue as RentFilter)}
+      options={['All', 'Late', 'Paid', 'Expiring', 'Closed']}
+    />
+  )
+}
+
+function StatusBadge({ status }: { status: ReturnType<typeof getTenancyDisplayStatus> }) {
+  const classes = {
+    Late: 'bg-red-100 text-red-800 border-red-200',
+    Paid: 'bg-blue-100 text-blue-800 border-blue-200',
+    Expiring: 'bg-amber-100 text-amber-800 border-amber-200',
+    Closed: 'bg-slate-100 text-slate-700 border-slate-200',
+  }[status]
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${classes}`}>
+      {status === 'Paid' ? <Check size={13} /> : status === 'Late' ? <AlertTriangle size={13} /> : <BadgeDollarSign size={13} />}
+      {status}
+    </span>
+  )
+}
+
+function TimelineItem({ label, value, active, muted }: { label: string; value: string; active?: boolean; muted?: boolean }) {
+  return (
+    <div className="grid grid-cols-[16px_1fr_auto] items-center gap-2 text-sm">
+      <span className={`h-2.5 w-2.5 rounded-full ${active ? 'bg-[var(--primary)]' : muted ? 'bg-slate-200' : 'bg-slate-500'}`} />
+      <span className={muted ? 'text-slate-400' : 'text-slate-700'}>{label}</span>
+      <span className={muted ? 'text-slate-400' : 'font-medium text-slate-950'}>{value}</span>
+    </div>
+  )
+}
+
+function UtilityRow({ code, label, value }: { code: string; label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
+      <div className="flex items-center gap-3">
+        <span className="rounded-md bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">{code}</span>
+        <span>{label}</span>
+      </div>
+      <span className="font-medium text-slate-700">Acc: {value || '-'}</span>
+    </div>
+  )
+}
+
+function formatDate(date: string) {
+  if (!date) return '-'
+  const parsed = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return date
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(parsed)
+}
+
+function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Building2 }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-2 inline-flex rounded-lg bg-slate-100 p-2 text-slate-700">
+        <Icon size={16} />
+      </div>
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+      <p className="text-2xl font-semibold">{value}</p>
+    </div>
+  )
+}
+
+function DataBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+      <p className="text-lg font-semibold">{value}</p>
+    </div>
+  )
+}
+
+function DataLine({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 py-2">
+      <span className="text-[var(--muted)]">{label}</span>
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function DataTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-slate-100 p-2">
+      <p className="text-[10px] text-[var(--muted)]">{label}</p>
+      <p className="font-medium">{value}</p>
+    </div>
+  )
+}
+
+function QuickButton({
+  text,
+  onClick,
+  disabled,
+}: {
+  text: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {text}
+    </button>
+  )
+}
+
+function FormGrid({ children }: { children: ReactNode }) {
+  return <div className="space-y-3">{children}</div>
+}
+
+function LabeledInput({
+  label,
+  value,
+  onChange,
+  type = 'text',
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: 'text' | 'date'
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-[var(--muted)]">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-[var(--primary)] focus:ring-2"
+      />
+    </label>
+  )
+}
+
+function MoneyInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-[var(--muted)]">{label}</span>
+      <input
+        type="number"
+        min={0}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value || 0))}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-[var(--primary)] focus:ring-2"
+      />
+    </label>
+  )
+}
+
+function LabeledSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: string[] | { label: string; value: string }[]
+  placeholder?: string
+}) {
+  const values = options.map((item) => (typeof item === 'string' ? { label: item, value: item } : item))
+  const safeValue = value || undefined
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-[var(--muted)]">{label}</span>
+      <Select.Root value={safeValue} onValueChange={onChange}>
+        <Select.Trigger className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-[var(--primary)] focus:ring-2">
+          <Select.Value placeholder={placeholder || 'Select'} />
+          <Select.Icon>
+            <ChevronDown size={14} />
+          </Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Content className="z-30 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+            <Select.Viewport className="p-1">
+              {values.map((option) => (
+                <Select.Item
+                  key={option.value}
+                  value={option.value}
+                  className="relative flex cursor-pointer select-none items-center rounded px-7 py-2 text-sm outline-none focus:bg-slate-100"
+                >
+                  <Select.ItemText>{option.label}</Select.ItemText>
+                  <Select.ItemIndicator className="absolute left-2">
+                    <Check size={14} />
+                  </Select.ItemIndicator>
+                </Select.Item>
+              ))}
+            </Select.Viewport>
+          </Select.Content>
+        </Select.Portal>
+      </Select.Root>
+    </label>
+  )
+}
+
+function SaveButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <div className="mt-4 flex justify-end">
+      <button
+        onClick={onClick}
+        className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-dark)]"
+      >
+        {children}
+      </button>
+    </div>
+  )
+}
+
+export default App

@@ -1,0 +1,42 @@
+:root {
+  font-family: "Sora", "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --bg: oklch(1 0 0);
+  --surface: oklch(0.985 0.003 230);
+  --ink: oklch(0.22 0.02 230);
+  --muted: oklch(0.54 0.02 230);
+  --primary: oklch(0.63 0.11 230);
+  --primary-dark: oklch(0.54 0.1 230);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: radial-gradient(circle at 10% 0%, oklch(0.99 0.02 230), oklch(1 0 0) 40%);
+  color: var(--ink);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

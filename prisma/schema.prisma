@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Property {
+  id                         String                @id
+  serialNumber               String                @unique
+  unitLabel                  String?
+  unitNumber                 String
+  streetAddress              String
+  cityState                  String
+  kind                       String
+  ownership                  String
+  spaPrice                   Float
+  bookValue                  Float
+  marketValue                Float
+  projectName                String
+  developerName              String
+  tenancyAgreementId         String?
+  tenancyAgreementLabel      String?
+  tenancyAgreementFileName   String?
+  tenancyAgreementUploadedAt String?
+  tenancyAgreementNotes      String?
+  renovations                RenovationItem[]
+  tenancies                  Tenancy[]
+  monthlyIncomes             MonthlyRentalIncome[]
+  monthlyExpenses            MonthlyExpenseEntry[]
+  expenseTxns                ExpenseTransaction[]
+}
+
+model RenovationItem {
+  id                 String   @id
+  propertyId         String
+  amountPaid         Float
+  paymentDate        String
+  invoiceNumber      String
+  description        String
+  depreciationPeriod Int
+  attachmentName     String?
+  property           Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model Tenant {
+  id            String    @id
+  name          String
+  nricPassport  String
+  email         String
+  mobile        String
+  tenancies     Tenancy[]
+}
+
+model Tenancy {
+  id                 String                  @id
+  propertyId         String
+  tenantId           String
+  rentalDeposit      Float
+  surcharge          Float
+  monthlyGross       Float
+  dateOfCollection   String
+  serviceFeeDeduction Float
+  monthlyNet         Float
+  dateOfNetRemitted  String
+  cumulativeGross    Float
+  cumulativeNet      Float
+  lateCollectionFlag Boolean
+  maintenanceCharges Float
+  quitRent           Float
+  assessment         Float
+  utilityCharges     Float
+  fireInsurancePremium Float
+  sinkingFundPayment Float
+  miscellaneousCharges Float
+  bankCostOfFunds    Float
+  depreciationCost   Float
+  commencementDate   String
+  keyCollectionDate  String
+  moveInDate         String
+  expirationDate     String
+  tenure             String
+  airSelangorAccount String
+  tnbAccount         String
+  tmAccount          String
+  status             String
+  closedEarly        Boolean
+  property           Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rentCollections    RentCollectionRecord[]
+  depositTxns        DepositTransaction[]
+  expenseTxns        ExpenseTransaction[]
+  activities         TenantActivity[]
+}
+
+model ExpenseCategory {
+  id             String               @id
+  name           String
+  groupType      String
+  isNonCash      Boolean              @default(false)
+  sortOrder      Int
+  monthlyEntries MonthlyExpenseEntry[]
+}
+
+model MonthlyRentalIncome {
+  id                String   @id
+  propertyId        String
+  periodMonth       String
+  grossRentalAmount Float
+  property          Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, periodMonth])
+}
+
+model MonthlyExpenseEntry {
+  id                String          @id
+  propertyId        String
+  periodMonth       String
+  expenseCategoryId String
+  amount            Float
+  notes             String?
+  property          Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  expenseCategory   ExpenseCategory @relation(fields: [expenseCategoryId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, periodMonth, expenseCategoryId])
+}
+
+model RentCollectionRecord {
+  id                     String   @id
+  tenancyId              String
+  expectedCollectionDate String
+  actualCollectionDate   String?
+  amountCollected        Float
+  serviceAdminFee        Float
+  sst                    Float
+  dateRemitted           String?
+  expectedAmount         Float?
+  notes                  String?
+  tenancy                Tenancy  @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+}
+
+model DepositTransaction {
+  id        String  @id
+  tenancyId String
+  date      String
+  type      String
+  amount    Float
+  notes     String?
+  tenancy   Tenancy @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+}
+
+model ExpenseTransaction {
+  id            String  @id
+  tenancyId     String?
+  propertyId    String
+  datePaid      String
+  expenseType   String
+  amount        Float
+  invoiceNumber String?
+  description   String?
+  tenancy       Tenancy? @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model TenantActivity {
+  id        String  @id
+  tenancyId String
+  date      String
+  type      String
+  notes     String
+  tenancy   Tenancy @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+}
