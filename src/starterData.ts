@@ -104,12 +104,6 @@ export const createStarterState = (): RentalSystemState => ({
       marketValue: 825000,
       projectName: 'The Horizon Suites',
       developerName: 'Horizon Urban Development Sdn Bhd',
-      tenancyAgreement: {
-        id: 'doc-horizon-ta',
-        label: 'Tenancy Agreement',
-        fileName: 'TA_Horizon_B-08-11_MichaelChang.pdf',
-        uploadedAt: '2025-12-01',
-      },
       renovations: [
         {
           id: 'reno-horizon-1',
@@ -138,12 +132,6 @@ export const createStarterState = (): RentalSystemState => ({
       marketValue: 705000,
       projectName: 'Residensi Vogue',
       developerName: 'Vogue Habitat Sdn Bhd',
-      tenancyAgreement: {
-        id: 'doc-vogue-ta',
-        label: 'Tenancy Agreement',
-        fileName: 'TA_ResidensiVogue_A-12-04_SarahJenkins.pdf',
-        uploadedAt: '2025-08-18',
-      },
       renovations: [],
     },
     {

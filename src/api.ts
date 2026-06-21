@@ -107,8 +107,42 @@ export const createRenovationRecord = (payload: RenovationInput) =>
     body: JSON.stringify(payload),
   })
 
+export const updatePropertyRecord = (id: string, payload: PropertyInput) =>
+  request<BootstrapResponse>(`/properties/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+
+export const deletePropertyRecord = (id: string) =>
+  request<BootstrapResponse>(`/properties/${id}`, {
+    method: 'DELETE',
+  })
+
+export const updateTenantRecord = (id: string, payload: TenantInput) =>
+  request<BootstrapResponse>(`/tenants/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteTenantRecord = (id: string) =>
+  request<BootstrapResponse>(`/tenants/${id}`, {
+    method: 'DELETE',
+  })
+
+export const updateTenancyRecord = (id: string, payload: TenancyInput) =>
+  request<BootstrapResponse>(`/tenancies/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteTenancyRecord = (id: string) =>
+  request<BootstrapResponse>(`/tenancies/${id}`, {
+    method: 'DELETE',
+  })
+
 export const restoreStarterData = () =>
   request<BootstrapResponse>('/admin/restore-starter-data', {
     method: 'POST',
     body: JSON.stringify({}),
   })
+

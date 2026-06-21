@@ -23,9 +23,6 @@ model Property {
   developerName              String
   tenancyAgreementId         String?
   tenancyAgreementLabel      String?
-  tenancyAgreementFileName   String?
-  tenancyAgreementUploadedAt String?
-  tenancyAgreementNotes      String?
   renovations                RenovationItem[]
   tenancies                  Tenancy[]
   monthlyIncomes             MonthlyRentalIncome[]
@@ -50,8 +47,10 @@ model Tenant {
   name          String
   nricPassport  String
   email         String
-  mobile        String
-  tenancies     Tenancy[]
+  mobile                 String
+  emergencyContactName   String?
+  emergencyContactNumber String?
+  tenancies              Tenancy[]
 }
 
 model Tenancy {
@@ -85,8 +84,10 @@ model Tenancy {
   airSelangorAccount String
   tnbAccount         String
   tmAccount          String
-  status             String
-  closedEarly        Boolean
+  status               String
+  closedEarly          Boolean
+  agentCommissionAmount Float?
+  specialClauses       String?
   property           Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rentCollections    RentCollectionRecord[]

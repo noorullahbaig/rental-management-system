@@ -38,7 +38,6 @@ export interface Property {
   marketValue: number
   projectName: string
   developerName: string
-  tenancyAgreement?: DocumentAttachment
   renovations: RenovationItem[]
 }
 
@@ -48,6 +47,8 @@ export interface Tenant {
   nricPassport: string
   email: string
   mobile: string
+  emergencyContactName?: string
+  emergencyContactNumber?: string
 }
 
 export interface RentalTerms {
@@ -91,6 +92,8 @@ export interface Tenancy {
   tmAccount: string
   status: 'Active' | 'Expiring' | 'Late Collection' | 'Closed Early' | 'Expired'
   closedEarly: boolean
+  agentCommissionAmount?: number
+  specialClauses?: string
 }
 
 export type ReportType =
@@ -211,7 +214,6 @@ export interface PropertyInput {
   marketValue: number
   projectName: string
   developerName: string
-  agreementFileName?: string
 }
 
 export interface TenantInput {
@@ -219,6 +221,8 @@ export interface TenantInput {
   nricPassport: string
   email: string
   mobile: string
+  emergencyContactName?: string
+  emergencyContactNumber?: string
 }
 
 export interface TenancyInput {
@@ -236,6 +240,8 @@ export interface TenancyInput {
   tmAccount: string
   status: Tenancy['status']
   closedEarly: boolean
+  agentCommissionAmount?: number
+  specialClauses?: string
 }
 
 export interface MonthlyRentalIncomeInput {

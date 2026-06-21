@@ -3,21 +3,39 @@ import { handle } from 'hono/cloudflare-pages'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { PrismaClient } from '@prisma/client'
 import { PrismaD1 } from '@prisma/adapter-d1'
+import { zValidator } from '@hono/zod-validator'
 import {
   buildBootstrapResponse,
   buildMonthlyProfitLossPayload,
   closeTenancyEarlyRecord,
   createPropertyRecord,
+  updatePropertyRecord,
+  deletePropertyRecord,
   createRentCollectionEntry,
   createRenovationRecord,
   createTenancyRecord,
+  updateTenancyRecord,
+  deleteTenancyRecord,
   createTenantActivityEntry,
   createTenantRecord,
+  updateTenantRecord,
+  deleteTenantRecord,
   saveMonthlyExpenseEntryRecord,
   saveMonthlyRentalIncomeRecord,
   seedStarterData,
   ensureStarterData,
 } from '../../server/state.ts'
+import {
+  loginSchema,
+  propertyInputSchema,
+  tenantInputSchema,
+  tenancyInputSchema,
+  monthlyRentalIncomeInputSchema,
+  monthlyExpenseEntryInputSchema,
+  rentCollectionInputSchema,
+  tenantActivityInputSchema,
+  renovationInputSchema,
+} from './schemas.ts'
 
 export type Bindings = {
   DB: D1Database
@@ -55,8 +73,8 @@ app.use('*', async (c, next) => {
   await next()
 })
 
-app.post('/login', async (c) => {
-  const body = await c.req.json()
+app.post('/login', zValidator('json', loginSchema), async (c) => {
+  const body = c.req.valid('json')
   const password = body.password
   const expectedPassword = c.env.ADMIN_PASSWORD || 'admin'
 
@@ -88,27 +106,60 @@ app.get('/properties', async (c) => {
   return c.json({ properties: (await buildBootstrapResponse(c.var.prisma)).state.properties })
 })
 
-app.post('/properties', async (c) => {
-  const payload = await c.req.json()
+app.post('/properties', zValidator('json', propertyInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await createPropertyRecord(c.var.prisma, payload) })
+})
+
+app.put('/properties/:id', zValidator('json', propertyInputSchema), async (c) => {
+  const id = c.req.param('id')
+  const payload = c.req.valid('json')
+  return c.json({ state: await updatePropertyRecord(c.var.prisma, id, payload) })
+})
+
+app.delete('/properties/:id', async (c) => {
+  const id = c.req.param('id')
+  return c.json({ state: await deletePropertyRecord(c.var.prisma, id) })
 })
 
 app.get('/tenants', async (c) => {
   return c.json({ tenants: (await buildBootstrapResponse(c.var.prisma)).state.tenants })
 })
 
-app.post('/tenants', async (c) => {
-  const payload = await c.req.json()
+app.post('/tenants', zValidator('json', tenantInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await createTenantRecord(c.var.prisma, payload) })
+})
+
+app.put('/tenants/:id', zValidator('json', tenantInputSchema), async (c) => {
+  const id = c.req.param('id')
+  const payload = c.req.valid('json')
+  return c.json({ state: await updateTenantRecord(c.var.prisma, id, payload) })
+})
+
+app.delete('/tenants/:id', async (c) => {
+  const id = c.req.param('id')
+  return c.json({ state: await deleteTenantRecord(c.var.prisma, id) })
 })
 
 app.get('/tenancies', async (c) => {
   return c.json({ tenancies: (await buildBootstrapResponse(c.var.prisma)).state.tenancies })
 })
 
-app.post('/tenancies', async (c) => {
-  const payload = await c.req.json()
+app.post('/tenancies', zValidator('json', tenancyInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await createTenancyRecord(c.var.prisma, payload) })
+})
+
+app.put('/tenancies/:id', zValidator('json', tenancyInputSchema), async (c) => {
+  const id = c.req.param('id')
+  const payload = c.req.valid('json')
+  return c.json({ state: await updateTenancyRecord(c.var.prisma, id, payload) })
+})
+
+app.delete('/tenancies/:id', async (c) => {
+  const id = c.req.param('id')
+  return c.json({ state: await deleteTenancyRecord(c.var.prisma, id) })
 })
 
 app.post('/tenancies/:id/close-early', async (c) => {
@@ -125,28 +176,28 @@ app.get('/monthly-profit-loss', async (c) => {
   return c.json(await buildMonthlyProfitLossPayload(c.var.prisma, periodMonth, propertyIds))
 })
 
-app.put('/monthly-rental-income', async (c) => {
-  const payload = await c.req.json()
+app.put('/monthly-rental-income', zValidator('json', monthlyRentalIncomeInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await saveMonthlyRentalIncomeRecord(c.var.prisma, payload) })
 })
 
-app.put('/monthly-expense-entry', async (c) => {
-  const payload = await c.req.json()
+app.put('/monthly-expense-entry', zValidator('json', monthlyExpenseEntryInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await saveMonthlyExpenseEntryRecord(c.var.prisma, payload) })
 })
 
-app.post('/rent-collections', async (c) => {
-  const payload = await c.req.json()
+app.post('/rent-collections', zValidator('json', rentCollectionInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await createRentCollectionEntry(c.var.prisma, payload) })
 })
 
-app.post('/tenant-activities', async (c) => {
-  const payload = await c.req.json()
+app.post('/tenant-activities', zValidator('json', tenantActivityInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await createTenantActivityEntry(c.var.prisma, payload) })
 })
 
-app.post('/renovations', async (c) => {
-  const payload = await c.req.json()
+app.post('/renovations', zValidator('json', renovationInputSchema), async (c) => {
+  const payload = c.req.valid('json')
   return c.json({ state: await createRenovationRecord(c.var.prisma, payload) })
 })
 
@@ -155,3 +206,4 @@ app.post('/admin/restore-starter-data', async (c) => {
 })
 
 export const onRequest = handle(app)
+

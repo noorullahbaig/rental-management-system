@@ -38,15 +38,7 @@ const mapProperty = (property: PrismaPropertyRow, renovations: PrismaRenovationR
   marketValue: property.marketValue,
   projectName: property.projectName,
   developerName: property.developerName,
-  tenancyAgreement: property.tenancyAgreementId
-    ? {
-        id: property.tenancyAgreementId,
-        label: property.tenancyAgreementLabel || 'Tenancy Agreement',
-        fileName: property.tenancyAgreementFileName || '',
-        uploadedAt: property.tenancyAgreementUploadedAt || '',
-        notes: property.tenancyAgreementNotes || undefined,
-      }
-    : undefined,
+
   renovations: renovations
     .filter((item) => item.propertyId === property.id)
     .map((item) => ({
@@ -97,6 +89,8 @@ const mapTenancy = (tenancy: PrismaTenancyRow): Tenancy => ({
   tmAccount: tenancy.tmAccount,
   status: tenancy.status as Tenancy['status'],
   closedEarly: tenancy.closedEarly,
+  agentCommissionAmount: tenancy.agentCommissionAmount || undefined,
+  specialClauses: tenancy.specialClauses || undefined,
 })
 
 export const buildState = async (prisma: PrismaClient): Promise<RentalSystemState> => {
@@ -135,6 +129,8 @@ export const buildState = async (prisma: PrismaClient): Promise<RentalSystemStat
         nricPassport: tenant.nricPassport,
         email: tenant.email,
         mobile: tenant.mobile,
+        emergencyContactName: tenant.emergencyContactName || undefined,
+        emergencyContactNumber: tenant.emergencyContactNumber || undefined,
       }),
     ),
     tenancies: tenancies.map(mapTenancy),
@@ -236,11 +232,6 @@ export const seedStarterData = async (prisma: PrismaClient) => {
         marketValue: property.marketValue,
         projectName: property.projectName,
         developerName: property.developerName,
-        tenancyAgreementId: property.tenancyAgreement?.id,
-        tenancyAgreementLabel: property.tenancyAgreement?.label,
-        tenancyAgreementFileName: property.tenancyAgreement?.fileName,
-        tenancyAgreementUploadedAt: property.tenancyAgreement?.uploadedAt,
-        tenancyAgreementNotes: property.tenancyAgreement?.notes,
       },
     })
     for (const renovation of property.renovations) {
@@ -298,6 +289,8 @@ export const seedStarterData = async (prisma: PrismaClient) => {
         tmAccount: tenancy.tmAccount,
         status: tenancy.status,
         closedEarly: tenancy.closedEarly,
+        agentCommissionAmount: tenancy.agentCommissionAmount,
+        specialClauses: tenancy.specialClauses,
       },
     })
   }
@@ -373,11 +366,35 @@ export const createPropertyRecord = async (prisma: PrismaClient, payload: Proper
       marketValue: payload.marketValue,
       projectName: payload.projectName,
       developerName: payload.developerName,
-      tenancyAgreementId: payload.agreementFileName ? randomUUID() : undefined,
-      tenancyAgreementLabel: payload.agreementFileName ? 'Tenancy Agreement' : undefined,
-      tenancyAgreementFileName: payload.agreementFileName,
-      tenancyAgreementUploadedAt: payload.agreementFileName ? new Date().toISOString().slice(0, 10) : undefined,
     },
+  })
+  return buildState(prisma)
+}
+
+export const updatePropertyRecord = async (prisma: PrismaClient, id: string, payload: PropertyInput) => {
+  await prisma.property.update({
+    where: { id },
+    data: {
+      serialNumber: payload.serialNumber?.trim(),
+      unitLabel: payload.address.unitNumber,
+      unitNumber: payload.address.unitNumber,
+      streetAddress: payload.address.streetAddress,
+      cityState: payload.address.cityState,
+      kind: payload.kind,
+      ownership: payload.ownership,
+      spaPrice: payload.spaPrice,
+      bookValue: payload.bookValue,
+      marketValue: payload.marketValue,
+      projectName: payload.projectName,
+      developerName: payload.developerName,
+    },
+  })
+  return buildState(prisma)
+}
+
+export const deletePropertyRecord = async (prisma: PrismaClient, id: string) => {
+  await prisma.property.delete({
+    where: { id },
   })
   return buildState(prisma)
 }
@@ -388,6 +405,21 @@ export const createTenantRecord = async (prisma: PrismaClient, payload: TenantIn
       id: randomUUID(),
       ...payload,
     },
+  })
+  return buildState(prisma)
+}
+
+export const updateTenantRecord = async (prisma: PrismaClient, id: string, payload: TenantInput) => {
+  await prisma.tenant.update({
+    where: { id },
+    data: payload,
+  })
+  return buildState(prisma)
+}
+
+export const deleteTenantRecord = async (prisma: PrismaClient, id: string) => {
+  await prisma.tenant.delete({
+    where: { id },
   })
   return buildState(prisma)
 }
@@ -427,10 +459,62 @@ export const createTenancyRecord = async (prisma: PrismaClient, payload: Tenancy
       tmAccount: payload.tmAccount,
       status: payload.status,
       closedEarly: payload.closedEarly,
+      agentCommissionAmount: payload.agentCommissionAmount,
+      specialClauses: payload.specialClauses,
     },
   })
   return buildState(prisma)
 }
+
+export const updateTenancyRecord = async (prisma: PrismaClient, id: string, payload: TenancyInput) => {
+  await prisma.tenancy.update({
+    where: { id },
+    data: {
+      propertyId: payload.propertyId,
+      tenantId: payload.tenantId,
+      rentalDeposit: payload.rentalTerms.rentalDeposit,
+      surcharge: payload.rentalTerms.surcharge,
+      monthlyGross: payload.rentalTerms.monthlyGross,
+      dateOfCollection: payload.rentalTerms.dateOfCollection,
+      serviceFeeDeduction: payload.rentalTerms.serviceFeeDeduction,
+      monthlyNet: payload.rentalTerms.monthlyNet,
+      dateOfNetRemitted: payload.rentalTerms.dateOfNetRemitted,
+      cumulativeGross: payload.rentalTerms.cumulativeGross,
+      cumulativeNet: payload.rentalTerms.cumulativeNet,
+      lateCollectionFlag: payload.rentalTerms.lateCollectionFlag,
+      maintenanceCharges: payload.deductions.maintenanceCharges,
+      quitRent: payload.deductions.quitRent,
+      assessment: payload.deductions.assessment,
+      utilityCharges: payload.deductions.utilityCharges,
+      fireInsurancePremium: payload.deductions.fireInsurancePremium,
+      sinkingFundPayment: payload.deductions.sinkingFundPayment,
+      miscellaneousCharges: payload.deductions.miscellaneousCharges,
+      bankCostOfFunds: payload.deductions.bankCostOfFunds,
+      depreciationCost: payload.deductions.depreciationCost,
+      commencementDate: payload.commencementDate,
+      keyCollectionDate: payload.keyCollectionDate,
+      moveInDate: payload.moveInDate,
+      expirationDate: payload.expirationDate,
+      tenure: payload.tenure,
+      airSelangorAccount: payload.airSelangorAccount,
+      tnbAccount: payload.tnbAccount,
+      tmAccount: payload.tmAccount,
+      status: payload.status,
+      closedEarly: payload.closedEarly,
+      agentCommissionAmount: payload.agentCommissionAmount,
+      specialClauses: payload.specialClauses,
+    },
+  })
+  return buildState(prisma)
+}
+
+export const deleteTenancyRecord = async (prisma: PrismaClient, id: string) => {
+  await prisma.tenancy.delete({
+    where: { id },
+  })
+  return buildState(prisma)
+}
+
 
 export const closeTenancyEarlyRecord = async (prisma: PrismaClient, tenancyId: string) => {
   await prisma.tenancy.update({
