@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { handle } from 'hono/cloudflare-pages'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { PrismaClient } from '@prisma/client'
 import { PrismaD1 } from '@prisma/adapter-d1'
@@ -153,4 +154,4 @@ app.post('/admin/restore-starter-data', async (c) => {
   return c.json({ state: await seedStarterData(c.var.prisma) })
 })
 
-export const onRequest = app.fetch
+export const onRequest = handle(app)
