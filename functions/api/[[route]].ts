@@ -21,9 +21,11 @@ import {
   updateTenantRecord,
   deleteTenantRecord,
   saveMonthlyExpenseEntryRecord,
+  saveMonthlyExpenseEntryRecord,
   saveMonthlyRentalIncomeRecord,
   seedStarterData,
   ensureStarterData,
+  logSystemActivity,
 } from '../../server/state.ts'
 import {
   loginSchema,
@@ -71,6 +73,23 @@ app.use('*', async (c, next) => {
   }
   
   await next()
+})
+
+app.use('*', async (c, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(c.req.method) && c.req.path !== '/api/login') {
+    const start = Date.now()
+    await next()
+    if (c.res.status === 200) {
+      const parts = c.req.path.split('/')
+      const entity = parts[2] || 'unknown'
+      const id = parts[3] || ''
+      const action = c.req.method
+      const details = `Performed ${action} on ${entity} ${id}`.trim()
+      await logSystemActivity(c.var.prisma, entity, action, details).catch(console.error)
+    }
+  } else {
+    await next()
+  }
 })
 
 app.post('/login', zValidator('json', loginSchema), async (c) => {
@@ -199,6 +218,40 @@ app.post('/tenant-activities', zValidator('json', tenantActivityInputSchema), as
 app.post('/renovations', zValidator('json', renovationInputSchema), async (c) => {
   const payload = c.req.valid('json')
   return c.json({ state: await createRenovationRecord(c.var.prisma, payload) })
+})
+
+app.post('/renovations', zValidator('json', renovationInputSchema), async (c) => {
+  const payload = c.req.valid('json')
+  return c.json({ state: await createRenovationRecord(c.var.prisma, payload) })
+})
+
+app.put('/renovations/:id', zValidator('json', renovationInputSchema), async (c) => {
+  const id = c.req.param('id')
+  const payload = c.req.valid('json')
+  await c.var.prisma.renovationItem.update({ where: { id }, data: payload })
+  return c.json({ state: await ensureStarterData(c.var.prisma).then(() => c.var.prisma).then(p => import('../../server/state.ts').then(m => m.buildState(p))) })
+})
+
+app.put('/tenant-activities/:id', zValidator('json', tenantActivityInputSchema), async (c) => {
+  const id = c.req.param('id')
+  const payload = c.req.valid('json')
+  await c.var.prisma.tenantActivity.update({ where: { id }, data: payload })
+  return c.json({ state: await import('../../server/state.ts').then(m => m.buildState(c.var.prisma)) })
+})
+
+app.put('/rent-collections/:id', zValidator('json', rentCollectionInputSchema), async (c) => {
+  const id = c.req.param('id')
+  const payload = c.req.valid('json')
+  await c.var.prisma.rentCollectionRecord.update({ where: { id }, data: payload })
+  return c.json({ state: await import('../../server/state.ts').then(m => m.buildState(c.var.prisma)) })
+})
+
+app.get('/system-logs', async (c) => {
+  const logs = await c.var.prisma.systemActivityLog.findMany({
+    orderBy: { timestamp: 'desc' },
+    take: 50,
+  })
+  return c.json({ logs })
 })
 
 app.post('/admin/restore-starter-data', async (c) => {

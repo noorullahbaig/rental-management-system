@@ -35,6 +35,20 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
       throw new UnauthorizedError()
     }
     const message = await response.text()
+    try {
+      const data = JSON.parse(message)
+      if (data.success === false && data.error && Array.isArray(data.error.issues)) {
+        const issues = data.error.issues.map((i: any) => {
+          const path = i.path.join(' > ')
+          return path ? `${path}: ${i.message}` : i.message
+        }).join('\\n')
+        throw new Error(`Validation Error:\\n${issues}`)
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith('Validation Error:')) {
+        throw e
+      }
+    }
     throw new Error(message || `Request failed: ${response.status}`)
   }
 
@@ -144,5 +158,33 @@ export const restoreStarterData = () =>
   request<BootstrapResponse>('/admin/restore-starter-data', {
     method: 'POST',
     body: JSON.stringify({}),
+  })
+
+export const fetchLogout = () =>
+  request<{ success: boolean }>('/logout', {
+    method: 'POST',
+  })
+
+export const fetchSystemLogs = () =>
+  request<{ logs: any[] }>('/system-logs', {
+    method: 'GET',
+  })
+
+export const updateTenantActivity = (id: string, payload: TenantActivityInput) =>
+  request<BootstrapResponse>(`/tenant-activities/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+
+export const updateRentCollection = (id: string, payload: RentCollectionInput) =>
+  request<BootstrapResponse>(`/rent-collections/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+
+export const updateRenovation = (id: string, payload: RenovationInput) =>
+  request<BootstrapResponse>(`/renovations/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   })
 

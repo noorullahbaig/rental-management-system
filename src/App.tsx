@@ -32,6 +32,7 @@ import {
   X,
   Edit3,
   Trash2,
+  PowerOff,
 } from 'lucide-react'
 import {
   createPropertyRecord,
@@ -51,6 +52,11 @@ import {
   updateTenancyRecord,
   deleteTenancyRecord,
   UnauthorizedError,
+  fetchLogout,
+  fetchSystemLogs,
+  updateTenantActivity,
+  updateRentCollection,
+  updateRenovation,
 } from './api'
 import { Login } from './components/Login'
 import {
@@ -93,6 +99,9 @@ import type {
   TenantActivityType,
   Tenancy,
   Tenant,
+  TenantActivityInput,
+  RentCollectionInput,
+  RenovationInput,
 } from './types'
 
 type Section = 'overview' | 'properties' | 'tenants' | 'reports'
@@ -386,6 +395,21 @@ function App() {
     status: 'Active',
     closedEarly: false,
   }))
+
+  const [activityEditDrawer, setActivityEditDrawer] = useState(false)
+  const [activityEditSaving, setActivityEditSaving] = useState(false)
+  const [activityEditId, setActivityEditId] = useState<string | null>(null)
+  const [activityEditDraft, setActivityEditDraft] = useState<TenantActivityInput>({ tenancyId: '', date: '', type: 'Note', notes: '' })
+
+  const [collectionEditDrawer, setCollectionEditDrawer] = useState(false)
+  const [collectionEditSaving, setCollectionEditSaving] = useState(false)
+  const [collectionEditId, setCollectionEditId] = useState<string | null>(null)
+  const [collectionEditDraft, setCollectionEditDraft] = useState<RentCollectionInput>({ tenancyId: '', expectedCollectionDate: '', amountCollected: 0, serviceAdminFee: 0, sst: 0 })
+
+  const [renovationEditDrawer, setRenovationEditDrawer] = useState(false)
+  const [renovationEditSaving, setRenovationEditSaving] = useState(false)
+  const [renovationEditId, setRenovationEditId] = useState<string | null>(null)
+  const [renovationEditDraft, setRenovationEditDraft] = useState<RenovationInput>({ propertyId: '', amountPaid: 0, paymentDate: '', invoiceNumber: '', description: '', depreciationPeriod: 5 })
   const [reportViewerOpen, setReportViewerOpen] = useState(false)
   const [activeReport, setActiveReport] = useState<ReportKey>('Statement of Account')
   const [reportPropertyId, setReportPropertyId] = useState('')
@@ -408,6 +432,9 @@ function App() {
   const [activeEditMonth, setActiveEditMonth] = useState<string | null>(null)
   const [editorDraft, setEditorDraft] = useState<Record<string, number>>({})
   const [editorSavedBadge, setEditorSavedBadge] = useState(false)
+
+  const [systemLogs, setSystemLogs] = useState<any[]>([])
+  const [systemLogsDrawer, setSystemLogsDrawer] = useState(false)
   const [libraryView, setLibraryView] = useState<'cards' | 'runner'>('cards')
   const [monthlyProfitLossPeriod, setMonthlyProfitLossPeriod] = useState(() => new Date().toISOString().slice(0, 7))
   const [portfolioViewMode, setPortfolioViewMode] = useState<'single' | 'ttm'>('single')
@@ -604,6 +631,92 @@ function App() {
       setPropertyCreateError(error instanceof Error ? error.message : 'Unable to save property.')
     } finally {
       setPropertyCreateSaving(false)
+    }
+  }
+
+  const openEditActivity = (activity: any) => {
+    setActivityEditId(activity.id)
+    setActivityEditDraft({
+      tenancyId: activity.tenancyId,
+      date: activity.date,
+      type: activity.type,
+      notes: activity.notes,
+    })
+    setActivityEditDrawer(true)
+  }
+
+  const saveActivityEdit = async () => {
+    if (!activityEditId) return
+    setActivityEditSaving(true)
+    try {
+      const response = await updateTenantActivity(activityEditId, activityEditDraft)
+      setState(response.state)
+      setActivityEditDrawer(false)
+      alert('Activity updated successfully.')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to update activity')
+    } finally {
+      setActivityEditSaving(false)
+    }
+  }
+
+  const openEditCollection = (collection: any, expectedAmount: number) => {
+    setCollectionEditId(collection.id)
+    setCollectionEditDraft({
+      tenancyId: collection.tenancyId,
+      expectedCollectionDate: collection.expectedCollectionDate,
+      actualCollectionDate: collection.actualCollectionDate,
+      amountCollected: collection.amountCollected,
+      serviceAdminFee: collection.serviceAdminFee,
+      sst: collection.sst,
+      dateRemitted: collection.dateRemitted,
+      expectedAmount: collection.expectedAmount || expectedAmount,
+      notes: collection.notes,
+    })
+    setCollectionEditDrawer(true)
+  }
+
+  const saveCollectionEdit = async () => {
+    if (!collectionEditId) return
+    setCollectionEditSaving(true)
+    try {
+      const response = await updateRentCollection(collectionEditId, collectionEditDraft)
+      setState(response.state)
+      setCollectionEditDrawer(false)
+      alert('Collection updated successfully.')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to update collection')
+    } finally {
+      setCollectionEditSaving(false)
+    }
+  }
+
+  const openEditRenovation = (renovation: any) => {
+    setRenovationEditId(renovation.id)
+    setRenovationEditDraft({
+      propertyId: renovation.propertyId,
+      amountPaid: renovation.amountPaid,
+      paymentDate: renovation.paymentDate,
+      invoiceNumber: renovation.invoiceNumber,
+      description: renovation.description,
+      depreciationPeriod: renovation.depreciationPeriod,
+      attachmentName: renovation.attachmentName,
+    })
+    setRenovationEditDrawer(true)
+  }
+
+  const saveRenovationEdit = async () => {
+    if (!renovationEditId) return
+    setRenovationEditSaving(true)
+    try {
+      const response = await updateRenovation(renovationEditId, renovationEditDraft)
+      setState(response.state)
+      setRenovationEditDrawer(false)
+      alert('Renovation updated successfully.')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to update renovation')
+    } finally {
+      setRenovationEditSaving(false)
     }
   }
 
@@ -1180,6 +1293,24 @@ function App() {
     return [...baseRows, ...renovationRows]
   }, [reportAsOfDate, reportFrom, reportPropertyId, reportTenancyId, reportTo, state.expenseTransactions, state.properties])
 
+  const loadSystemLogs = async () => {
+    try {
+      const response = await fetchSystemLogs()
+      setSystemLogs(response.logs)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetchLogout()
+      window.location.reload()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const runReport = (report: ReportKey) => {
     setActiveReport(report)
     if (report === 'Monthly P&L') {
@@ -1265,9 +1396,27 @@ function App() {
               <button className="rounded-md p-2 hover:bg-slate-100 lg:hidden" onClick={() => setShowMobileNav(true)}>
                 <Menu size={18} />
               </button>
-              <div className="hidden items-center gap-2 text-sm text-slate-600 md:flex">
-                <Bell size={16} />
-                <span>{lateCount} late</span>
+              <div className="hidden items-center gap-4 text-sm text-slate-600 md:flex">
+                <button
+                  onClick={() => {
+                    loadSystemLogs()
+                    setSystemLogsDrawer(true)
+                  }}
+                  className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-100 transition-colors"
+                  title="System Activity Log"
+                >
+                  <Bell size={16} />
+                  <span>Activity</span>
+                </button>
+                <div className="h-4 w-px bg-slate-200" />
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 rounded-lg p-2 text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="Log out"
+                >
+                  <PowerOff size={16} />
+                  <span>Logout</span>
+                </button>
               </div>
               <div className="relative max-w-xl flex-1">
                 <Search
@@ -1313,10 +1462,10 @@ function App() {
               {section === 'overview' && (
                 <section className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Metric label="Properties" value={String(state.properties.length)} icon={Building2} />
-                    <Metric label="Active Tenancies" value={String(state.tenancies.length)} icon={Users} />
-                    <Metric label="Late Collections" value={String(lateCount)} icon={AlertTriangle} />
-                    <Metric label="Expiring Soon" value={String(expiringCount)} icon={CalendarClock} />
+                    <Metric label="Properties" value={String(state.properties.length)} icon={Building2} onClick={() => setSection('properties')} />
+                    <Metric label="Active Tenancies" value={String(state.tenancies.length)} icon={Users} onClick={() => { setSection('tenants'); setTenantDeskQueue('All tenancies'); }} />
+                    <Metric label="Late Collections" value={String(lateCount)} icon={AlertTriangle} onClick={() => { setSection('tenants'); setTenantDeskQueue('Late collection'); }} />
+                    <Metric label="Expiring Soon" value={String(expiringCount)} icon={CalendarClock} onClick={() => { setSection('tenants'); setTenantDeskQueue('Renewals'); }} />
                   </div>
                   <div className="grid gap-4 xl:grid-cols-3">
                     <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5">
@@ -1434,12 +1583,19 @@ function App() {
                           </div>
                           <div className="space-y-2">
                             {selectedProperty.renovations.map((renovation) => (
-                              <div key={renovation.id} className="rounded-lg border border-slate-200 p-3">
-                                <p className="font-medium">{renovation.description}</p>
+                              <div key={renovation.id} className="group rounded-lg border border-slate-200 p-3 relative transition-colors hover:border-[var(--primary)] hover:bg-slate-50">
+                                <p className="font-medium pr-8">{renovation.description}</p>
                                 <p className="text-xs text-[var(--muted)]">
                                   {currency(renovation.amountPaid)} | {renovation.paymentDate || 'No date'} |{' '}
                                   {renovation.depreciationPeriod} years
                                 </p>
+                                <button
+                                  onClick={() => openEditRenovation(renovation)}
+                                  className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded transition-all"
+                                  title="Edit Renovation"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
                               </div>
                             ))}
                             {!selectedProperty.renovations.length && (
@@ -1566,6 +1722,7 @@ function App() {
                   onDeleteTenant={deleteTenant}
                   onEditTenancy={openEditTenancy}
                   onDeleteTenancy={deleteTenancy}
+                  onEditActivity={openEditActivity}
                 />
               )}
 
@@ -3159,6 +3316,35 @@ function App() {
       </Drawer>
 
       <Drawer
+        title="System Activity Log"
+        subtitle="Audit trail of all recent updates and amendments in the system."
+        open={systemLogsDrawer}
+        onOpenChange={(open) => {
+          setSystemLogsDrawer(open)
+        }}
+      >
+        <div className="space-y-4">
+          {systemLogs.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">No recent activity.</p>
+          ) : (
+            <div className="space-y-3">
+              {systemLogs.map((log) => (
+                <div key={log.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {log.action} {log.entity}
+                    </span>
+                    <span className="text-xs text-slate-400">{formatDate(log.timestamp.split('T')[0])} {log.timestamp.split('T')[1]?.substring(0, 5)}</span>
+                  </div>
+                  <p className="text-sm text-slate-600">{log.details}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Drawer>
+
+      <Drawer
         title="Edit Property"
         subtitle="Update the asset record details. Changes will reflect across tenancies, reports, and monthly close."
         open={propertyEditDrawer}
@@ -3695,7 +3881,7 @@ function App() {
             <LabeledInput
               label="Invoice number"
               value={renovationDraft.invoiceNumber}
-              onChange={(value) => setRenovationDraft((prev) => ({ ...prev, invoiceNumber: value }))}
+              onChange={(value) => setRenovationDraft((prev: any) => ({ ...prev, invoiceNumber: value }))}
             />
             <LabeledInput
               label="Cost description"
@@ -3711,14 +3897,9 @@ function App() {
             columnsClassName="md:grid-cols-2"
           >
             <LabeledSelect
-              label="Depreciation period"
+              label="Depreciation Period (Years)"
               value={String(renovationDraft.depreciationPeriod)}
-              onChange={(value) =>
-                setRenovationDraft((prev) => ({
-                  ...prev,
-                  depreciationPeriod: Number(value) as DepreciationPeriod,
-                }))
-              }
+              onChange={(value) => setRenovationDraft((prev: any) => ({ ...prev, depreciationPeriod: Number(value) }))}
               options={['1', '3', '5', '10']}
             />
             <InlineNote>Keep this aligned to how the expense schedule is maintained operationally.</InlineNote>
@@ -3731,11 +3912,130 @@ function App() {
             <LabeledInput
               label="Invoice attachment name"
               value={renovationDraft.attachmentName}
-              onChange={(value) => setRenovationDraft((prev) => ({ ...prev, attachmentName: value }))}
+              onChange={(value) => setRenovationDraft((prev: any) => ({ ...prev, attachmentName: value }))}
               helper="Use the file name operators recognize later."
             />
           </SectionCard>
           <InlineNote>Maximum 10 items per property.</InlineNote>
+        </div>
+      </Drawer>
+
+      <Drawer
+        title="Edit Activity Note"
+        subtitle="Amend the logged tenant activity details."
+        open={activityEditDrawer}
+        onOpenChange={(open) => {
+          setActivityEditDrawer(open)
+        }}
+        widthClassName="max-w-md"
+        footer={
+          <SaveButton
+            onClick={saveActivityEdit}
+            disabled={!activityEditDraft.notes}
+            busy={activityEditSaving}
+            busyLabel="Saving..."
+          >
+            Save Amendment
+          </SaveButton>
+        }
+      >
+        <div className="space-y-4">
+          <LabeledSelect
+            label="Activity type"
+            value={activityEditDraft.type}
+            onChange={(value) => setActivityEditDraft((prev) => ({ ...prev, type: value as any }))}
+            options={['Collection', 'Reminder', 'Renewal', 'Note', 'Termination']}
+          />
+          <LabeledInput
+            label="Date"
+            type="date"
+            value={activityEditDraft.date}
+            onChange={(value) => setActivityEditDraft((prev) => ({ ...prev, date: value }))}
+          />
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">Remarks / Notes</span>
+            <textarea
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none ring-[var(--primary)] focus:ring-2"
+              rows={4}
+              value={activityEditDraft.notes}
+              onChange={(e) => setActivityEditDraft((prev) => ({ ...prev, notes: e.target.value }))}
+            />
+          </label>
+        </div>
+      </Drawer>
+
+      <Drawer
+        title="Edit Rent Collection"
+        subtitle="Amend collection amounts or dates."
+        open={collectionEditDrawer}
+        onOpenChange={(open) => {
+          setCollectionEditDrawer(open)
+        }}
+        widthClassName="max-w-md"
+        footer={
+          <SaveButton
+            onClick={saveCollectionEdit}
+            busy={collectionEditSaving}
+            busyLabel="Saving..."
+          >
+            Save Amendment
+          </SaveButton>
+        }
+      >
+        <div className="space-y-4">
+          <MoneyInput
+            label="Amount Collected"
+            value={collectionEditDraft.amountCollected}
+            onChange={(value) => setCollectionEditDraft((prev) => ({ ...prev, amountCollected: value }))}
+          />
+          <LabeledInput
+            label="Actual Collection Date"
+            type="date"
+            value={collectionEditDraft.actualCollectionDate || ''}
+            onChange={(value) => setCollectionEditDraft((prev) => ({ ...prev, actualCollectionDate: value }))}
+          />
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">Remarks / Notes</span>
+            <textarea
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none ring-[var(--primary)] focus:ring-2"
+              rows={3}
+              value={collectionEditDraft.notes || ''}
+              onChange={(e) => setCollectionEditDraft((prev) => ({ ...prev, notes: e.target.value }))}
+            />
+          </label>
+        </div>
+      </Drawer>
+
+      <Drawer
+        title="Edit Renovation"
+        subtitle="Amend renovation description or amounts."
+        open={renovationEditDrawer}
+        onOpenChange={(open) => {
+          setRenovationEditDrawer(open)
+        }}
+        widthClassName="max-w-md"
+        footer={
+          <SaveButton
+            onClick={saveRenovationEdit}
+            disabled={!renovationEditDraft.description}
+            busy={renovationEditSaving}
+            busyLabel="Saving..."
+          >
+            Save Amendment
+          </SaveButton>
+        }
+      >
+        <div className="space-y-4">
+          <LabeledInput
+            label="Description"
+            value={renovationEditDraft.description}
+            onChange={(value) => setRenovationEditDraft((prev) => ({ ...prev, description: value }))}
+          />
+          <MoneyInput
+            label="Amount Paid"
+            value={renovationEditDraft.amountPaid}
+            onChange={(value) => setRenovationEditDraft((prev) => ({ ...prev, amountPaid: value }))}
+          />
         </div>
       </Drawer>
 
@@ -3856,6 +4156,8 @@ function App() {
                   monthlyProfitLossRows={monthlyProfitLossReportRows}
                   includePaidAccounts={includePaidAccounts}
                   onToggleIncludePaid={() => setIncludePaidAccounts((prev) => !prev)}
+                  openEditCollection={openEditCollection}
+                  state={state}
                 />
               </div>
               <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
@@ -4435,6 +4737,8 @@ function ReportBody({
   monthlyProfitLossRows,
   includePaidAccounts,
   onToggleIncludePaid,
+  openEditCollection,
+  state,
 }: {
   activeReport: ReportKey
   statementRows: Record<string, unknown>[]
@@ -4447,6 +4751,8 @@ function ReportBody({
   monthlyProfitLossRows: Record<string, unknown>[]
   includePaidAccounts: boolean
   onToggleIncludePaid: () => void
+  openEditCollection: (collection: any, expectedAmount: number) => void
+  state: RentalSystemState
 }) {
   if (activeReport === 'Monthly P&L')
     return (
@@ -4469,8 +4775,22 @@ function ReportBody({
     )
   if (activeReport === 'Statement of Account')
     return (
-      <div className="overflow-auto rounded-[24px] border border-slate-200">
-        <ObjectTable data={statementRows} />
+      <div className="space-y-3">
+        <InlineNote>Click on any row to amend the rent collection details.</InlineNote>
+        <div className="overflow-auto rounded-[24px] border border-slate-200">
+          <ObjectTable 
+            data={statementRows} 
+            onRowClick={(row) => {
+              if (row.id) {
+                // we have a real collection item, not derived
+                const collection = state.rentCollections.find(c => c.id === row.id)
+                if (collection) {
+                  openEditCollection(collection, row.monthlyGrossRental as number)
+                }
+              }
+            }} 
+          />
+        </div>
       </div>
     )
   if (activeReport === 'Monthly Cash Collection')
@@ -4515,10 +4835,12 @@ function ObjectTable({
   data,
   sortable = true,
   wrapCells = false,
+  onRowClick,
 }: {
   data: Record<string, unknown>[]
   sortable?: boolean
   wrapCells?: boolean
+  onRowClick?: (row: Record<string, unknown>) => void
 }) {
   const headers = useMemo(() => (data.length ? Object.keys(data[0]) : []), [data])
   const [sortBy, setSortBy] = useState<string>('')
@@ -4574,7 +4896,11 @@ function ObjectTable({
         </thead>
         <tbody>
           {sortedData.map((row, index) => (
-            <tr key={index} className="border-t border-slate-100">
+            <tr
+              key={index}
+              className={`border-t border-slate-100 ${onRowClick ? 'cursor-pointer hover:bg-slate-50 transition-colors' : ''}`}
+              onClick={() => onRowClick?.(row)}
+            >
               {headers.map((header) => {
                 const value = row[header]
                 const display = typeof value === 'number' ? value.toFixed(2) : String(value ?? '-')
@@ -4623,6 +4949,7 @@ function TenantWorkspace({
   onDeleteTenant,
   onEditTenancy,
   onDeleteTenancy,
+  onEditActivity,
 }: {
   state: RentalSystemState
   tenancies: Tenancy[]
@@ -4654,6 +4981,7 @@ function TenantWorkspace({
   onDeleteTenant: (tenantId: string) => void
   onEditTenancy: (tenancy: Tenancy) => void
   onDeleteTenancy: (tenancyId: string) => void
+  onEditActivity: (activity: any) => void
 }) {
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,0.85fr)]">
@@ -4795,6 +5123,7 @@ function TenantWorkspace({
         onDeleteTenant={onDeleteTenant}
         onEditTenancy={onEditTenancy}
         onDeleteTenancy={onDeleteTenancy}
+        onEditActivity={onEditActivity}
       />
     </section>
   )
@@ -4821,6 +5150,7 @@ function TenantInspector({
   onDeleteTenant,
   onEditTenancy,
   onDeleteTenancy,
+  onEditActivity,
 }: {
   state: RentalSystemState
   tenancy: Tenancy | null
@@ -4842,6 +5172,7 @@ function TenantInspector({
   onDeleteTenant: (tenantId: string) => void
   onEditTenancy: (tenancy: Tenancy) => void
   onDeleteTenancy: (tenancyId: string) => void
+  onEditActivity: (activity: any) => void
 }) {
   if (!tenancy) {
     return (
@@ -5040,12 +5371,19 @@ function TenantInspector({
           <Tabs.Content value="activity" className="rounded-xl border border-slate-200 p-4">
             <div className="space-y-3">
               {activities.map((activity) => (
-                <div key={activity.id} className="rounded-lg border border-slate-200 p-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
+                <div key={activity.id} className="group rounded-lg border border-slate-200 p-3 text-sm transition-colors hover:border-[var(--primary)] hover:bg-slate-50 relative">
+                  <div className="flex items-center justify-between gap-3 pr-8">
                     <p className="font-medium text-slate-900">{activity.type}</p>
                     <p className="text-xs text-[var(--muted)]">{formatDate(activity.date)}</p>
                   </div>
-                  <p className="mt-1 text-[var(--muted)]">{activity.notes}</p>
+                  <p className="mt-1 text-[var(--muted)] pr-8">{activity.notes}</p>
+                  <button
+                    onClick={() => onEditActivity(activity)}
+                    className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded transition-all"
+                    title="Edit Activity"
+                  >
+                    <Edit3 size={14} />
+                  </button>
                 </div>
               ))}
               {!activities.length && <p className="text-sm text-[var(--muted)]">No activity logged yet.</p>}
@@ -5153,9 +5491,12 @@ function formatDate(date: string) {
   }).format(parsed)
 }
 
-function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Building2 }) {
+function Metric({ label, value, icon: Icon, onClick }: { label: string; value: string; icon: typeof Building2; onClick?: () => void }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <div 
+      onClick={onClick}
+      className={`rounded-2xl border border-slate-200 bg-white p-4 ${onClick ? 'cursor-pointer hover:bg-slate-50 transition-colors' : ''}`}
+    >
       <div className="mb-2 inline-flex rounded-lg bg-slate-100 p-2 text-slate-700">
         <Icon size={16} />
       </div>
@@ -5319,8 +5660,11 @@ function MoneyInput({
       <input
         type="number"
         min={0}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value || 0))}
+        value={Number.isNaN(value) ? '' : value}
+        onChange={(event) => {
+          const val = event.target.value
+          onChange(val === '' ? NaN : Number(val))
+        }}
         className={`w-full rounded-xl border bg-white px-3.5 py-3 text-sm outline-none transition ring-[var(--primary)] focus:ring-2 ${error ? 'border-rose-300' : 'border-slate-200'}`}
       />
       <FieldError>{error}</FieldError>
@@ -5370,7 +5714,7 @@ function LabeledSelect({
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Content className="z-30 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+          <Select.Content className="z-[60] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
             <Select.Viewport className="p-1">
               {values.map((option) => (
                 <Select.Item

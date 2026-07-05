@@ -325,6 +325,7 @@ const getCollectionForTenancy = (
 }
 
 export interface StatementRow {
+  id: string
   tenancyId: string
   propertySerial: string
   propertyAddress: string
@@ -386,6 +387,7 @@ export const buildStatementOfAccount = (
       })
       if (filters.status && status !== filters.status) return
       rows.push({
+        id: collection.id,
         tenancyId: tenancy.id,
         propertySerial: property.serialNumber,
         propertyAddress: `${property.address.streetAddress}, ${property.address.cityState}`,
@@ -587,13 +589,33 @@ export const triggerPdfPrint = (title: string, rows: Record<string, unknown>[]) 
   th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; }
   th { background: #f8fafc; }
   </style></head><body><h1>${title}</h1><table><thead><tr>${tableHead}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`
-  const win = window.open('', '_blank', 'noopener,noreferrer')
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '1px'
+  iframe.style.height = '1px'
+  iframe.style.opacity = '0'
+  iframe.style.pointerEvents = 'none'
+  iframe.style.border = '0'
+  document.body.appendChild(iframe)
+
+  const win = iframe.contentWindow
   if (!win) return
+  
   win.document.open()
   win.document.write(html)
   win.document.close()
   win.focus()
-  win.print()
+  
+  setTimeout(() => {
+    win.print()
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe)
+      }
+    }, 1000)
+  }, 250)
 }
 
 export const buildPropertyTimeSeries = (

@@ -1,4 +1,17 @@
 const randomUUID = () => crypto.randomUUID()
+
+export const logSystemActivity = async (prisma: PrismaClient, entity: string, action: string, details: string) => {
+  await prisma.systemActivityLog.create({
+    data: {
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      entity,
+      action,
+      details,
+    },
+  })
+}
+
 import type { PrismaClient } from '@prisma/client'
 import { buildMonthlyProfitLoss, buildMonthlyProfitLossPortfolioSummary } from '../src/reports.ts'
 import { createStarterState } from '../src/starterData.ts'

@@ -8,26 +8,26 @@ datasource db {
 }
 
 model Property {
-  id                         String                @id
-  serialNumber               String                @unique
-  unitLabel                  String?
-  unitNumber                 String
-  streetAddress              String
-  cityState                  String
-  kind                       String
-  ownership                  String
-  spaPrice                   Float
-  bookValue                  Float
-  marketValue                Float
-  projectName                String
-  developerName              String
-  tenancyAgreementId         String?
-  tenancyAgreementLabel      String?
-  renovations                RenovationItem[]
-  tenancies                  Tenancy[]
-  monthlyIncomes             MonthlyRentalIncome[]
-  monthlyExpenses            MonthlyExpenseEntry[]
-  expenseTxns                ExpenseTransaction[]
+  id                    String                @id
+  serialNumber          String                @unique
+  unitLabel             String?
+  unitNumber            String
+  streetAddress         String
+  cityState             String
+  kind                  String
+  ownership             String
+  spaPrice              Float
+  bookValue             Float
+  marketValue           Float
+  projectName           String
+  developerName         String
+  tenancyAgreementId    String?
+  tenancyAgreementLabel String?
+  renovations           RenovationItem[]
+  tenancies             Tenancy[]
+  monthlyIncomes        MonthlyRentalIncome[]
+  monthlyExpenses       MonthlyExpenseEntry[]
+  expenseTxns           ExpenseTransaction[]
 }
 
 model RenovationItem {
@@ -43,10 +43,10 @@ model RenovationItem {
 }
 
 model Tenant {
-  id            String    @id
-  name          String
-  nricPassport  String
-  email         String
+  id                     String    @id
+  name                   String
+  nricPassport           String
+  email                  String
   mobile                 String
   emergencyContactName   String?
   emergencyContactNumber String?
@@ -54,53 +54,53 @@ model Tenant {
 }
 
 model Tenancy {
-  id                 String                  @id
-  propertyId         String
-  tenantId           String
-  rentalDeposit      Float
-  surcharge          Float
-  monthlyGross       Float
-  dateOfCollection   String
-  serviceFeeDeduction Float
-  monthlyNet         Float
-  dateOfNetRemitted  String
-  cumulativeGross    Float
-  cumulativeNet      Float
-  lateCollectionFlag Boolean
-  maintenanceCharges Float
-  quitRent           Float
-  assessment         Float
-  utilityCharges     Float
-  fireInsurancePremium Float
-  sinkingFundPayment Float
-  miscellaneousCharges Float
-  bankCostOfFunds    Float
-  depreciationCost   Float
-  commencementDate   String
-  keyCollectionDate  String
-  moveInDate         String
-  expirationDate     String
-  tenure             String
-  airSelangorAccount String
-  tnbAccount         String
-  tmAccount          String
-  status               String
-  closedEarly          Boolean
+  id                    String                 @id
+  propertyId            String
+  tenantId              String
+  rentalDeposit         Float
+  surcharge             Float
+  monthlyGross          Float
+  dateOfCollection      String
+  serviceFeeDeduction   Float
+  monthlyNet            Float
+  dateOfNetRemitted     String
+  cumulativeGross       Float
+  cumulativeNet         Float
+  lateCollectionFlag    Boolean
+  maintenanceCharges    Float
+  quitRent              Float
+  assessment            Float
+  utilityCharges        Float
+  fireInsurancePremium  Float
+  sinkingFundPayment    Float
+  miscellaneousCharges  Float
+  bankCostOfFunds       Float
+  depreciationCost      Float
+  commencementDate      String
+  keyCollectionDate     String
+  moveInDate            String
+  expirationDate        String
+  tenure                String
+  airSelangorAccount    String
+  tnbAccount            String
+  tmAccount             String
+  status                String
+  closedEarly           Boolean
   agentCommissionAmount Float?
-  specialClauses       String?
-  property           Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  rentCollections    RentCollectionRecord[]
-  depositTxns        DepositTransaction[]
-  expenseTxns        ExpenseTransaction[]
-  activities         TenantActivity[]
+  specialClauses        String?
+  property              Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rentCollections       RentCollectionRecord[]
+  depositTxns           DepositTransaction[]
+  expenseTxns           ExpenseTransaction[]
+  activities            TenantActivity[]
 }
 
 model ExpenseCategory {
-  id             String               @id
+  id             String                @id
   name           String
   groupType      String
-  isNonCash      Boolean              @default(false)
+  isNonCash      Boolean               @default(false)
   sortOrder      Int
   monthlyEntries MonthlyExpenseEntry[]
 }
@@ -129,7 +129,7 @@ model MonthlyExpenseEntry {
 }
 
 model RentCollectionRecord {
-  id                     String   @id
+  id                     String  @id
   tenancyId              String
   expectedCollectionDate String
   actualCollectionDate   String?
@@ -139,7 +139,7 @@ model RentCollectionRecord {
   dateRemitted           String?
   expectedAmount         Float?
   notes                  String?
-  tenancy                Tenancy  @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+  tenancy                Tenancy @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
 }
 
 model DepositTransaction {
@@ -153,7 +153,7 @@ model DepositTransaction {
 }
 
 model ExpenseTransaction {
-  id            String  @id
+  id            String   @id
   tenancyId     String?
   propertyId    String
   datePaid      String
@@ -172,4 +172,12 @@ model TenantActivity {
   type      String
   notes     String
   tenancy   Tenancy @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+}
+
+model SystemActivityLog {
+  id        String @id
+  timestamp String
+  entity    String
+  action    String
+  details   String
 }
