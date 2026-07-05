@@ -162,6 +162,7 @@ type ReportKey =
   | 'Rent Roll & Tenancy Status'
   | 'Deposit Register'
   | 'Expense & Depreciation Schedule'
+  | 'System Activity Log'
 type ReportTab = 'analytics' | 'portfolio' | 'library'
 
 
@@ -2670,6 +2671,7 @@ function App() {
                               expenseRows={expenseRows}
                               cashAccount={cashAccount}
                               monthlyProfitLossRows={monthlyProfitLossReportRows}
+                              systemLogsRows={systemLogs}
                               onReportChange={setActiveReport}
                               onPropertyChange={setReportPropertyId}
                               onTenantChange={setReportTenantId}
@@ -4154,6 +4156,7 @@ function App() {
                   expenseRows={expenseRows}
                   cashAccount={cashAccount}
                   monthlyProfitLossRows={monthlyProfitLossReportRows}
+                  systemLogsRows={systemLogs}
                   includePaidAccounts={includePaidAccounts}
                   onToggleIncludePaid={() => setIncludePaidAccounts((prev) => !prev)}
                   openEditCollection={openEditCollection}
@@ -4349,6 +4352,7 @@ function ReportRunnerWorkspace({
   expenseRows,
   cashAccount,
   monthlyProfitLossRows,
+  systemLogsRows,
   onReportChange,
   onPropertyChange,
   onTenantChange,
@@ -4389,6 +4393,7 @@ function ReportRunnerWorkspace({
   expenseRows: Record<string, unknown>[]
   cashAccount: Record<string, unknown>
   monthlyProfitLossRows: Record<string, unknown>[]
+  systemLogsRows: Record<string, unknown>[]
   onReportChange: (value: ReportKey) => void
   onPropertyChange: (value: string) => void
   onTenantChange: (value: string) => void
@@ -4415,6 +4420,7 @@ function ReportRunnerWorkspace({
     'Rent Roll & Tenancy Status',
     'Deposit Register',
     'Expense & Depreciation Schedule',
+    'System Activity Log',
   ]
   const reportPropertyLabel = reportPropertyOptions.find((option) => option.value === reportPropertyId)?.label || 'All properties'
   const reportTenantLabel = reportTenantOptions.find((option) => option.value === reportTenantId)?.label || 'All tenants'
@@ -4452,6 +4458,8 @@ function ReportRunnerWorkspace({
         return [cashAccount]
       case 'Monthly P&L':
         return monthlyProfitLossRows
+      case 'System Activity Log':
+        return systemLogsRows
       default:
         return []
     }
@@ -4735,6 +4743,7 @@ function ReportBody({
   expenseRows,
   cashAccount,
   monthlyProfitLossRows,
+  systemLogsRows,
   includePaidAccounts,
   onToggleIncludePaid,
   openEditCollection,
@@ -4749,6 +4758,7 @@ function ReportBody({
   expenseRows: Record<string, unknown>[]
   cashAccount: Record<string, unknown>
   monthlyProfitLossRows: Record<string, unknown>[]
+  systemLogsRows: Record<string, unknown>[]
   includePaidAccounts: boolean
   onToggleIncludePaid: () => void
   openEditCollection: (collection: any, expectedAmount: number) => void
@@ -4824,6 +4834,16 @@ function ReportBody({
         <ObjectTable data={depositRows} />
       </div>
     )
+  if (activeReport === 'System Activity Log')
+    return (
+      <div className="space-y-3">
+        <InlineNote>Complete historical log of all mutations.</InlineNote>
+        <div className="overflow-auto rounded-[24px] border border-slate-200">
+          <ObjectTable data={systemLogsRows} />
+        </div>
+      </div>
+    )
+
   return (
     <div className="overflow-auto rounded-[24px] border border-slate-200">
       <ObjectTable data={expenseRows} />
