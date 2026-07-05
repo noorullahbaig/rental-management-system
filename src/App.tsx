@@ -692,10 +692,10 @@ function App() {
     }
   }
 
-  const openEditRenovation = (renovation: any) => {
+  const openEditRenovation = (renovation: any, propertyId: string) => {
     setRenovationEditId(renovation.id)
     setRenovationEditDraft({
-      propertyId: renovation.propertyId,
+      propertyId,
       amountPaid: renovation.amountPaid,
       paymentDate: renovation.paymentDate,
       invoiceNumber: renovation.invoiceNumber,
@@ -1594,7 +1594,7 @@ function App() {
                                   {renovation.depreciationPeriod} years
                                 </p>
                                 <button
-                                  onClick={() => openEditRenovation(renovation)}
+                                  onClick={() => openEditRenovation(renovation, selectedProperty.id)}
                                   className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded transition-all"
                                   title="Edit Renovation"
                                 >
