@@ -1332,6 +1332,7 @@ function App() {
       expenseRows,
       cashAccount,
       monthlyProfitLossReportRows,
+      systemLogs,
     )
   }
 
@@ -1347,6 +1348,7 @@ function App() {
       expenseRows,
       cashAccount,
       monthlyProfitLossReportRows,
+      systemLogs,
     )
   }
 
@@ -4176,6 +4178,7 @@ function App() {
                       depositRows,
                       expenseRows,
                       monthlyProfitLossReportRows,
+                      systemLogs,
                     )
                   }
                   onClick={() =>
@@ -4189,6 +4192,7 @@ function App() {
                       expenseRows,
                       cashAccount,
                       monthlyProfitLossReportRows,
+                      systemLogs,
                     )
                   }
                   className="rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
@@ -4206,6 +4210,7 @@ function App() {
                       depositRows,
                       expenseRows,
                       monthlyProfitLossReportRows,
+                      systemLogs,
                     )
                   }
                   onClick={() =>
@@ -4219,6 +4224,7 @@ function App() {
                       expenseRows,
                       cashAccount,
                       monthlyProfitLossReportRows,
+                      systemLogs,
                     )
                   }
                   className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
@@ -4267,6 +4273,7 @@ function hasRowsForReport(
   depositRows: Record<string, unknown>[],
   expenseRows: Record<string, unknown>[],
   monthlyProfitLossRows: Record<string, unknown>[],
+  systemLogsRows: Record<string, unknown>[],
 ) {
   if (report === 'Statement of Account') return statementRows.length > 0
   if (report === 'Monthly P&L') return monthlyProfitLossRows.length > 0
@@ -4275,6 +4282,7 @@ function hasRowsForReport(
   if (report === 'Rent Roll & Tenancy Status') return rentRollRows.length > 0
   if (report === 'Deposit Register') return depositRows.length > 0
   if (report === 'Expense & Depreciation Schedule') return expenseRows.length > 0
+  if (report === 'System Activity Log') return systemLogsRows.length > 0
   return true
 }
 
@@ -4288,6 +4296,7 @@ function exportActiveReportCsv(
   expenseRows: Record<string, unknown>[],
   cashAccount: Record<string, unknown>,
   monthlyProfitLossRows: Record<string, unknown>[],
+  systemLogsRows: Record<string, unknown>[],
 ) {
   if (report === 'Statement of Account') return triggerCsvDownload('statement-of-account.csv', statementRows)
   if (report === 'Monthly P&L') return triggerCsvDownload('monthly-profit-loss.csv', monthlyProfitLossRows)
@@ -4299,6 +4308,7 @@ function exportActiveReportCsv(
   if (report === 'Expense & Depreciation Schedule')
     return triggerCsvDownload('expense-depreciation-schedule.csv', expenseRows)
   if (report === 'Cash Account') return triggerCsvDownload('cash-account.csv', [cashAccount])
+  if (report === 'System Activity Log') return triggerCsvDownload('system-activity-log.csv', systemLogsRows)
   return undefined
 }
 
@@ -4312,6 +4322,7 @@ function exportActiveReportPdf(
   expenseRows: Record<string, unknown>[],
   cashAccount: Record<string, unknown>,
   monthlyProfitLossRows: Record<string, unknown>[],
+  systemLogsRows: Record<string, unknown>[],
 ) {
   if (report === 'Statement of Account') return triggerPdfPrint('Statement of Account', statementRows)
   if (report === 'Monthly P&L') return triggerPdfPrint('Monthly P&L', monthlyProfitLossRows)
@@ -4323,6 +4334,7 @@ function exportActiveReportPdf(
   if (report === 'Expense & Depreciation Schedule')
     return triggerPdfPrint('Expense & Depreciation Schedule', expenseRows)
   if (report === 'Cash Account') return triggerPdfPrint('Cash Account', [cashAccount])
+  if (report === 'System Activity Log') return triggerPdfPrint('System Activity Log', systemLogsRows)
   return undefined
 }
 
