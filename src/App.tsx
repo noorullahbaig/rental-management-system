@@ -1399,28 +1399,7 @@ function App() {
               <button className="rounded-md p-2 hover:bg-slate-100 lg:hidden" onClick={() => setShowMobileNav(true)}>
                 <Menu size={18} />
               </button>
-              <div className="hidden items-center gap-4 text-sm text-slate-600 md:flex">
-                <button
-                  onClick={() => {
-                    loadSystemLogs()
-                    setSystemLogsDrawer(true)
-                  }}
-                  className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-100 transition-colors"
-                  title="System Activity Log"
-                >
-                  <Bell size={16} />
-                  <span>Activity</span>
-                </button>
-                <div className="h-4 w-px bg-slate-200" />
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 rounded-lg p-2 text-rose-600 hover:bg-rose-50 transition-colors"
-                  title="Log out"
-                >
-                  <PowerOff size={16} />
-                  <span>Logout</span>
-                </button>
-              </div>
+
               <div className="relative max-w-xl flex-1">
                 <Search
                   size={16}
@@ -1438,8 +1417,30 @@ function App() {
                 className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-slate-900 hover:bg-[var(--primary-dark)]"
               >
                 <Plus size={15} />
-                Add Property
+                <span className="hidden sm:inline">Create property</span>
               </button>
+              
+              <div className="hidden items-center gap-4 text-sm text-slate-600 md:flex ml-2 border-l border-slate-200 pl-4">
+                <button
+                  onClick={() => {
+                    loadSystemLogs()
+                    setSystemLogsDrawer(true)
+                  }}
+                  className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-100 transition-colors"
+                  title="System Activity Log"
+                >
+                  <Bell size={16} />
+                  <span>Activity</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 rounded-lg p-2 text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="Log out"
+                >
+                  <PowerOff size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
           </header>
 
