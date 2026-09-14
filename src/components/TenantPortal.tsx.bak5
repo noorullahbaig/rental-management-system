@@ -884,7 +884,7 @@ function TenancySection({ tenancy, currency, formatDate }: any) {
             <p className="font-medium text-slate-900 mt-1">
               {tenancy.property.unitNumber} {tenancy.property.streetAddress}
             </p>
-            <p className="text-slate-600">{tenancy.property.cityState}</p>
+            <p className="text-slate-600">{tenancy.property.address.cityState}</p>
           </div>
           <div>
             <label className="text-sm text-slate-600">Property Type</label>
