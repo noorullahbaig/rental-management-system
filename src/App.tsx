@@ -1521,7 +1521,7 @@ function App() {
               initial={reduceMotion ? false : { opacity: 0, y: 8 }}
               animate={reduceMotion ? {} : { opacity: 1, y: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="px-4 py-6 lg:px-8"
+              className={`px-4 lg:px-8 ${section === 'overview' ? 'py-4' : 'py-6'}`}
             >
               {bootstrapError && (
                 <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

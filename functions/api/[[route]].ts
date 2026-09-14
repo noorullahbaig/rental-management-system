@@ -873,64 +873,68 @@ app.get('/bootstrap', async (c) => {
 app.get('/dashboard-stats', requireRole('ADMIN', 'EMPLOYEE'), async (c) => {
   const prisma = c.var.prisma
   
-  // 1. Metrics
+  // 1. Total Properties
   const totalProperties = await prisma.property.count()
-  const activeTenancies = await prisma.tenancy.count({
-    where: { status: 'ACTIVE' }
+  
+  // 2. Active Tenancies (Status in Active, Late Collection, Expiring and not closed early)
+  const allTenancies = await prisma.tenancy.findMany({
+    include: {
+      tenant: true,
+      property: true,
+    }
   })
   
-  // 2. Pending Verifications
+  const activeTenanciesList = allTenancies.filter((t: any) => 
+    !t.closedEarly && t.status !== 'Closed Early' && t.status !== 'Expired'
+  )
+  const activeCount = activeTenanciesList.length
+  
+  // Calculate total monthly gross rent of all active tenancies
+  const monthlyGrossTotal = activeTenanciesList.reduce((sum: number, t: any) => sum + (t.monthlyGross || 0), 0)
+  
+  // 3. Pending Verifications
   const pendingReceipts = await prisma.paymentReceipt.findMany({
     where: { verificationStatus: 'PENDING' },
     include: { tenancy: { include: { tenant: true, property: true } } },
     orderBy: { uploadedAt: 'desc' }
   })
   
-  // 3. Open Maintenance
+  // 4. Open Maintenance
   const openMaintenance = await prisma.maintenanceRequest.findMany({
     where: { status: { in: ['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS'] } },
     include: { tenancy: { include: { tenant: true, property: true } } },
     orderBy: { submittedDate: 'desc' }
   })
   
-  // 4. Expiring Leases (within next 60 days)
+  // 5. Expiring Leases (within next 90 days or overdue for renewal)
   const now = new Date()
-  const in60Days = new Date()
-  in60Days.setDate(in60Days.getDate() + 60)
+  const in90Days = new Date()
+  in90Days.setDate(in90Days.getDate() + 90)
   
-  const expiringLeases = await prisma.tenancy.findMany({
-    where: {
-      status: 'ACTIVE',
-      // We do a simple fetch all active and filter in memory since sqlite string dates are hard to compare reliably sometimes
-    },
-    include: { tenant: true, property: true }
-  })
-  
-  const filteredExpiring = expiringLeases.filter((t: any) => {
-    const expDate = new Date(t.expirationDate)
-    return expDate <= in60Days && expDate >= now
-  }).sort((a: any, b: any) => new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime())
+  const expiringLeases = activeTenanciesList
+    .map((t: any) => {
+      const expDate = new Date(t.expirationDate)
+      const diffTime = expDate.getTime() - now.getTime()
+      const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      return {
+        ...t,
+        daysRemaining
+      }
+    })
+    .filter((t: any) => t.daysRemaining <= 90)
+    .sort((a: any, b: any) => a.daysRemaining - b.daysRemaining)
 
-  // Calculate current month expected rent vs collected (Optional, but let's do a simple version based on rentCollections)
-  const currentMonthPrefix = now.toISOString().slice(0, 7) // YYYY-MM
-  const currentMonthCollections = await prisma.rentCollectionRecord.findMany({
-    where: { expectedCollectionDate: { startsWith: currentMonthPrefix } }
-  })
-  
-  const totalExpectedRent = currentMonthCollections.reduce((sum: number, rc: any) => sum + (rc.expectedAmount || 0), 0)
-  const totalCollectedRent = currentMonthCollections.reduce((sum: number, rc: any) => sum + rc.amountCollected, 0)
-  
   return c.json({
     metrics: {
       totalProperties,
-      activeTenancies,
-      occupancyRate: totalProperties > 0 ? Math.round((activeTenancies / totalProperties) * 100) : 0,
-      currentMonthExpected: totalExpectedRent,
-      currentMonthCollected: totalCollectedRent
+      activeTenancies: activeCount,
+      occupancyRate: totalProperties > 0 ? Math.round((activeCount / totalProperties) * 100) : 0,
+      currentMonthExpected: monthlyGrossTotal,
+      currentMonthCollected: 0,
     },
     pendingReceipts,
     openMaintenance,
-    expiringLeases: filteredExpiring
+    expiringLeases
   })
 })
 app.get('/properties', requireRole('ADMIN', 'EMPLOYEE'), async (c) => {
