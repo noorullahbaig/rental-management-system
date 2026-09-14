@@ -187,3 +187,7 @@ export const updateRenovation = (id: string, payload: RenovationInput) =>
     body: JSON.stringify(payload),
   })
 
+
+export async function fetchDashboardStats() {
+  return request('/dashboard-stats')
+}

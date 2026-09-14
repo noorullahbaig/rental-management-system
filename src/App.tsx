@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import AdminDashboard from "./components/AdminDashboard"
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Select from '@radix-ui/react-select'
 import * as Tabs from '@radix-ui/react-tabs'
@@ -1534,37 +1535,9 @@ function App() {
               ) : (
                 <>
               {section === 'overview' && (
-                <section className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Metric label="Properties" value={String(state.properties.length)} icon={Building2} onClick={() => setSection('properties')} />
-                    <Metric label="Active Tenancies" value={String(state.tenancies.length)} icon={Users} onClick={() => { setSection('tenants'); setTenantDeskQueue('All tenancies'); }} />
-                    <Metric label="Late Collections" value={String(lateCount)} icon={AlertTriangle} onClick={() => { setSection('tenants'); setTenantDeskQueue('Late collection'); }} />
-                    <Metric label="Expiring Soon" value={String(expiringCount)} icon={CalendarClock} onClick={() => { setSection('tenants'); setTenantDeskQueue('Renewals'); }} />
-                  </div>
-                  <div className="grid gap-4 xl:grid-cols-3">
-                    <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5">
-                      <h2 className="mb-1 text-base font-semibold">Portfolio Cash Snapshot</h2>
-                      <p className="mb-4 text-sm text-[var(--muted)]">
-                        Current cumulative rent position from the operational record.
-                      </p>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <DataBlock label="Cumulative Gross Rental" value={currency(totalGross)} />
-                        <DataBlock label="Cumulative Net Rental" value={currency(totalNet)} />
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                      <h2 className="mb-4 text-base font-semibold">Quick Actions</h2>
-                      <div className="space-y-2">
-                        <QuickButton text="Create Tenant" onClick={() => setTenantDrawer(true)} />
-                        <QuickButton text="Open Property Reports" onClick={() => setSection('reports')} />
-                        <QuickButton
-                          text="Setup Tenancy"
-                          onClick={() => setTenancyDrawer(true)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </section>
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <AdminDashboard onNavigate={setSection} />
+                </div>
               )}
 
               {section === 'properties' && (
