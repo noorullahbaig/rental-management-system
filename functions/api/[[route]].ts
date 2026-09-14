@@ -155,48 +155,52 @@ app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
   const body = c.req.valid('json')
   const { email, password } = body
 
-  const user = await c.var.prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: email.toLowerCase() },
-        { username: email.toLowerCase() }
-      ],
-      status: 'ACTIVE'
-    }
-  })
+  try {
+    const user = await c.var.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: email.toLowerCase() },
+          { username: email.toLowerCase() }
+        ],
+        status: 'ACTIVE'
+      }
+    })
 
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    return c.json({ error: 'Invalid credentials' }, 401)
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    // Set secure cookies
+    setCookie(c, 'user_id', user.id, {
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'Strict',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    })
+    
+    setCookie(c, 'user_role', user.role, {
+      path: '/',
+      secure: true,
+      httpOnly: false, // Allow client to read role
+      sameSite: 'Strict',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+
+    return c.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      }
+    })
+  } catch (error) {
+    return c.json({ error: 'Database Error', details: error instanceof Error ? error.message : String(error) }, 500)
   }
-
-  // Set secure cookies
-  setCookie(c, 'user_id', user.id, {
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'Strict',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  })
-  
-  setCookie(c, 'user_role', user.role, {
-    path: '/',
-    secure: true,
-    httpOnly: false, // Allow client to read role
-    sameSite: 'Strict',
-    maxAge: 60 * 60 * 24 * 30,
-  })
-
-  return c.json({
-    success: true,
-    user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      firstName: user.firstName,
-      lastName: user.lastName,
-    }
-  })
 })
 
 app.post('/auth/logout', async (c) => {
