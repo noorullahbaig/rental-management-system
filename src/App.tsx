@@ -1535,8 +1535,22 @@ function App() {
               ) : (
                 <>
               {section === 'overview' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <AdminDashboard onNavigate={setSection} />
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <AdminDashboard
+                    state={state}
+                    onNavigate={setSection}
+                    onSelectProperty={(propertyId) => {
+                      setSelectedPropertyId(propertyId)
+                      setSection('properties')
+                    }}
+                    onFilterTenants={(queue) => {
+                      setTenantDeskQueue(queue)
+                      setSection('tenants')
+                    }}
+                    onOpenPropertyDrawer={() => setPropertyDrawer(true)}
+                    onOpenTenancyDrawer={() => setTenancyDrawer(true)}
+                    onOpenTenantDrawer={() => setTenantDrawer(true)}
+                  />
                 </div>
               )}
 
