@@ -210,6 +210,7 @@ export interface RentalSystemState {
 
 export interface BootstrapResponse {
   state: RentalSystemState
+  currentUser?: any
 }
 
 export interface PropertyInput {

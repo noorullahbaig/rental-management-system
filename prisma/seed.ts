@@ -23,7 +23,7 @@ try {
   })
 
   // Create default users
-  const adminUser = await prisma.user.create({
+  await prisma.user.create({
     data: {
       id: randomUUID(),
       email: 'admin@rental.com',
@@ -38,7 +38,7 @@ try {
   })
   console.log('✓ Admin user created: admin@rental.com / admin123')
 
-  const employeeUser = await prisma.user.create({
+  await prisma.user.create({
     data: {
       id: randomUUID(),
       email: 'employee@rental.com',

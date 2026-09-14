@@ -164,11 +164,6 @@ export const restoreStarterData = () =>
     body: JSON.stringify({}),
   })
 
-export const fetchLogout = () =>
-  request<{ success: boolean }>('/logout', {
-    method: 'POST',
-  })
-
 export const fetchSystemLogs = () =>
   request<{ logs: any[] }>('/system-logs', {
     method: 'GET',
