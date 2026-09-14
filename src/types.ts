@@ -38,6 +38,11 @@ export interface Property {
   marketValue: number
   projectName: string
   developerName: string
+  numberOfRooms?: number
+  carParks?: number
+  squareFeet?: number
+  otherAppliances?: string
+  ceilingFans?: number
   renovations: RenovationItem[]
 }
 
@@ -94,6 +99,9 @@ export interface Tenancy {
   closedEarly: boolean
   agentCommissionAmount?: number
   specialClauses?: string
+  signedAgreementUrl?: string
+  moveInPicturesUrl?: string
+  moveOutPicturesUrl?: string
 }
 
 export type ReportType =
@@ -214,6 +222,11 @@ export interface PropertyInput {
   marketValue: number
   projectName: string
   developerName: string
+  numberOfRooms?: number
+  carParks?: number
+  squareFeet?: number
+  otherAppliances?: string
+  ceilingFans?: number
 }
 
 export interface TenantInput {
@@ -242,6 +255,9 @@ export interface TenancyInput {
   closedEarly: boolean
   agentCommissionAmount?: number
   specialClauses?: string
+  signedAgreementUrl?: string
+  moveInPicturesUrl?: string
+  moveOutPicturesUrl?: string
 }
 
 export interface MonthlyRentalIncomeInput {

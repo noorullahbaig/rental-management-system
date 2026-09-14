@@ -23,11 +23,16 @@ model Property {
   developerName         String
   tenancyAgreementId    String?
   tenancyAgreementLabel String?
-  renovations           RenovationItem[]
-  tenancies             Tenancy[]
-  monthlyIncomes        MonthlyRentalIncome[]
-  monthlyExpenses       MonthlyExpenseEntry[]
-  expenseTxns           ExpenseTransaction[]
+  numberOfRooms       Int?
+  carParks            Int?
+  squareFeet          Float?
+  otherAppliances     String?
+  ceilingFans         Int?
+  renovations         RenovationItem[]
+  tenancies           Tenancy[]
+  monthlyIncomes      MonthlyRentalIncome[]
+  monthlyExpenses     MonthlyExpenseEntry[]
+  expenseTxns         ExpenseTransaction[]
 }
 
 model RenovationItem {
@@ -43,7 +48,7 @@ model RenovationItem {
 }
 
 model Tenant {
-  id                     String    @id
+  id                     String         @id
   name                   String
   nricPassport           String
   email                  String
@@ -51,6 +56,7 @@ model Tenant {
   emergencyContactName   String?
   emergencyContactNumber String?
   tenancies              Tenancy[]
+  userProfile            TenantProfile?
 }
 
 model Tenancy {
@@ -88,12 +94,18 @@ model Tenancy {
   closedEarly           Boolean
   agentCommissionAmount Float?
   specialClauses        String?
+  signedAgreementUrl    String?
+  moveInPicturesUrl     String?
+  moveOutPicturesUrl    String?
   property              Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rentCollections       RentCollectionRecord[]
   depositTxns           DepositTransaction[]
   expenseTxns           ExpenseTransaction[]
   activities            TenantActivity[]
+  maintenanceRequests   MaintenanceRequest[]
+  paymentReceipts       PaymentReceipt[]
+  utilityBills          UtilityBill[]
 }
 
 model ExpenseCategory {
@@ -180,4 +192,132 @@ model SystemActivityLog {
   entity    String
   action    String
   details   String
+}
+
+model User {
+  id            String   @id
+  email         String   @unique
+  username      String?  @unique
+  passwordHash  String
+  role          String   // 'ADMIN', 'EMPLOYEE', 'TENANT'
+  status        String   // 'ACTIVE', 'SUSPENDED', 'PENDING'
+  firstName     String
+  lastName      String
+  createdAt     String
+  lastLoginAt   String?
+  
+  tenantProfile        TenantProfile?
+  maintenanceAssignments MaintenanceRequest[] @relation("AssignedEmployee")
+  notifications        Notification[]
+}
+
+model TenantProfile {
+  id                     String  @id
+  userId                 String  @unique
+  tenantId               String  @unique
+  phoneNumber            String?
+  alternateEmail         String?
+  preferredContactMethod String? // 'EMAIL', 'SMS', 'PHONE'
+  notificationsEnabled   Boolean @default(true)
+  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceRequest {
+  id               String   @id
+  tenancyId        String
+  requestedBy      String
+  category         String   // 'PLUMBING', 'ELECTRICAL', 'AC', 'APPLIANCES', 'OTHER'
+  title            String
+  description      String
+  urgency          String   // 'LOW', 'MEDIUM', 'HIGH', 'EMERGENCY'
+  status           String   // 'SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'
+  submittedDate    String
+  acknowledgedDate String?
+  resolvedDate     String?
+  estimatedCost    Float?
+  actualCost       Float?
+  assignedTo       String?
+  
+  tenancy     Tenancy                  @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+  assignee    User?                    @relation("AssignedEmployee", fields: [assignedTo], references: [id])
+  attachments MaintenanceAttachment[]
+  comments    MaintenanceComment[]
+}
+
+model MaintenanceAttachment {
+  id         String @id
+  requestId  String
+  fileName   String
+  fileUrl    String
+  uploadedBy String
+  uploadedAt String
+  fileType   String // 'IMAGE', 'DOCUMENT', 'VIDEO'
+  fileSize   Int    // in bytes
+  
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceComment {
+  id        String @id
+  requestId String
+  userId    String
+  userName  String
+  comment   String
+  timestamp String
+  
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model PaymentReceipt {
+  id                 String  @id
+  tenancyId          String
+  uploadedBy         String
+  paymentDate        String
+  amount             Float
+  paymentMethod      String  // 'BANK_TRANSFER', 'CASH', 'CHEQUE', 'ONLINE'
+  referenceNumber    String?
+  receiptUrl         String
+  fileName           String
+  uploadedAt         String
+  verifiedBy         String?
+  verificationDate   String?
+  verificationStatus String  // 'PENDING', 'VERIFIED', 'REJECTED'
+  rejectionReason    String?
+  notes              String?
+  
+  tenancy Tenancy @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+}
+
+model UtilityBill {
+  id         String  @id
+  tenancyId  String
+  uploadedBy String
+  billType   String  // 'ELECTRICITY', 'WATER', 'GAS', 'INTERNET'
+  billMonth  String  // YYYY-MM format
+  amount     Float
+  dueDate    String
+  billUrl    String
+  fileName   String
+  uploadedAt String
+  paidDate   String?
+  paidBy     String? // 'TENANT', 'LANDLORD'
+  status     String  // 'UPLOADED', 'PAID', 'OVERDUE'
+  notes      String?
+  
+  tenancy Tenancy @relation(fields: [tenancyId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String  @id
+  userId    String
+  type      String  // 'PAYMENT_DUE', 'PAYMENT_CONFIRMED', 'MAINTENANCE_UPDATE', 'LEASE_EXPIRY', 'ANNOUNCEMENT'
+  title     String
+  message   String
+  isRead    Boolean @default(false)
+  createdAt String
+  relatedId String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

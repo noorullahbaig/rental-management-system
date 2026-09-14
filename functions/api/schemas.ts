@@ -3,7 +3,77 @@ import { z } from 'zod'
 const num = (name: string) => z.number({ invalid_type_error: `${name} must be a valid number, characters are not allowed` })
 
 export const loginSchema = z.object({
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
+})
+
+export const userInputSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  username: z.string().min(3, 'Username must be at least 3 characters').optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['ADMIN', 'EMPLOYEE', 'TENANT']),
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional(),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  tenantId: z.string().optional(), // For linking to existing tenant
+})
+
+export const userUpdateSchema = z.object({
+  email: z.string().email('Invalid email address').optional(),
+  username: z.string().min(3).optional(),
+  role: z.enum(['ADMIN', 'EMPLOYEE', 'TENANT']).optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional(),
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+})
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+})
+
+export const maintenanceRequestSchema = z.object({
+  tenancyId: z.string().min(1),
+  category: z.enum(['PLUMBING', 'ELECTRICAL', 'AC', 'APPLIANCES', 'OTHER']),
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().min(1, 'Description is required'),
+  urgency: z.enum(['LOW', 'MEDIUM', 'HIGH', 'EMERGENCY']),
+})
+
+export const maintenanceUpdateSchema = z.object({
+  status: z.enum(['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']).optional(),
+  assignedTo: z.string().optional().nullable(),
+  estimatedCost: num('Estimated Cost').optional().nullable(),
+  actualCost: num('Actual Cost').optional().nullable(),
+})
+
+export const maintenanceCommentSchema = z.object({
+  comment: z.string().min(1, 'Comment is required'),
+})
+
+export const paymentReceiptSchema = z.object({
+  tenancyId: z.string().min(1),
+  paymentDate: z.string().min(1),
+  amount: num('Amount').min(0),
+  paymentMethod: z.enum(['BANK_TRANSFER', 'CASH', 'CHEQUE', 'ONLINE']),
+  referenceNumber: z.string().optional(),
+  notes: z.string().optional(),
+  fileName: z.string().min(1),
+})
+
+export const paymentVerificationSchema = z.object({
+  verificationStatus: z.enum(['VERIFIED', 'REJECTED']),
+  rejectionReason: z.string().optional(),
+})
+
+export const utilityBillSchema = z.object({
+  tenancyId: z.string().min(1),
+  billType: z.enum(['ELECTRICITY', 'WATER', 'GAS', 'INTERNET']),
+  billMonth: z.string().regex(/^\d{4}-\d{2}$/, 'Invalid month format (YYYY-MM)'),
+  amount: num('Amount').min(0),
+  dueDate: z.string().min(1),
+  fileName: z.string().min(1),
+  notes: z.string().optional(),
 })
 
 export const propertyAddressSchema = z.object({
@@ -22,6 +92,11 @@ export const propertyInputSchema = z.object({
   marketValue: num('Market Value').min(0, 'Market Value must be >= 0'),
   projectName: z.string().optional().or(z.literal('')),
   developerName: z.string().optional().or(z.literal('')),
+  numberOfRooms: num('Number of Rooms').optional(),
+  carParks: num('Car Parks').optional(),
+  squareFeet: num('Square Feet').optional(),
+  otherAppliances: z.string().optional().or(z.literal('')),
+  ceilingFans: num('Ceiling Fans').optional(),
 })
 
 export const tenantInputSchema = z.object({
@@ -75,6 +150,9 @@ export const tenancyInputSchema = z.object({
   closedEarly: z.boolean(),
   agentCommissionAmount: num('Agent Commission').optional().nullable(),
   specialClauses: z.string().optional().nullable(),
+  signedAgreementUrl: z.string().optional().or(z.literal('')),
+  moveInPicturesUrl: z.string().optional().or(z.literal('')),
+  moveOutPicturesUrl: z.string().optional().or(z.literal('')),
 })
 
 export const monthlyRentalIncomeInputSchema = z.object({

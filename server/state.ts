@@ -51,6 +51,11 @@ const mapProperty = (property: PrismaPropertyRow, renovations: PrismaRenovationR
   marketValue: property.marketValue,
   projectName: property.projectName,
   developerName: property.developerName,
+  numberOfRooms: property.numberOfRooms || undefined,
+  carParks: property.carParks || undefined,
+  squareFeet: property.squareFeet || undefined,
+  otherAppliances: property.otherAppliances || undefined,
+  ceilingFans: property.ceilingFans || undefined,
 
   renovations: renovations
     .filter((item) => item.propertyId === property.id)
@@ -104,6 +109,9 @@ const mapTenancy = (tenancy: PrismaTenancyRow): Tenancy => ({
   closedEarly: tenancy.closedEarly,
   agentCommissionAmount: tenancy.agentCommissionAmount || undefined,
   specialClauses: tenancy.specialClauses || undefined,
+  signedAgreementUrl: tenancy.signedAgreementUrl || undefined,
+  moveInPicturesUrl: tenancy.moveInPicturesUrl || undefined,
+  moveOutPicturesUrl: tenancy.moveOutPicturesUrl || undefined,
 })
 
 export const buildState = async (prisma: PrismaClient): Promise<RentalSystemState> => {
@@ -379,6 +387,11 @@ export const createPropertyRecord = async (prisma: PrismaClient, payload: Proper
       marketValue: payload.marketValue,
       projectName: payload.projectName,
       developerName: payload.developerName,
+      numberOfRooms: payload.numberOfRooms,
+      carParks: payload.carParks,
+      squareFeet: payload.squareFeet,
+      otherAppliances: payload.otherAppliances,
+      ceilingFans: payload.ceilingFans,
     },
   })
   return buildState(prisma)
@@ -400,6 +413,11 @@ export const updatePropertyRecord = async (prisma: PrismaClient, id: string, pay
       marketValue: payload.marketValue,
       projectName: payload.projectName,
       developerName: payload.developerName,
+      numberOfRooms: payload.numberOfRooms,
+      carParks: payload.carParks,
+      squareFeet: payload.squareFeet,
+      otherAppliances: payload.otherAppliances,
+      ceilingFans: payload.ceilingFans,
     },
   })
   return buildState(prisma)
@@ -474,6 +492,9 @@ export const createTenancyRecord = async (prisma: PrismaClient, payload: Tenancy
       closedEarly: payload.closedEarly,
       agentCommissionAmount: payload.agentCommissionAmount,
       specialClauses: payload.specialClauses,
+      signedAgreementUrl: payload.signedAgreementUrl,
+      moveInPicturesUrl: payload.moveInPicturesUrl,
+      moveOutPicturesUrl: payload.moveOutPicturesUrl,
     },
   })
   return buildState(prisma)
@@ -516,6 +537,9 @@ export const updateTenancyRecord = async (prisma: PrismaClient, id: string, payl
       closedEarly: payload.closedEarly,
       agentCommissionAmount: payload.agentCommissionAmount,
       specialClauses: payload.specialClauses,
+      signedAgreementUrl: payload.signedAgreementUrl,
+      moveInPicturesUrl: payload.moveInPicturesUrl,
+      moveOutPicturesUrl: payload.moveOutPicturesUrl,
     },
   })
   return buildState(prisma)

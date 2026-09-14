@@ -43,6 +43,7 @@ import {
   createTenancyRecord,
   closeTenancyEarlyRecord,
   fetchBootstrap,
+  fetchCurrentUser,
   saveMonthlyExpenseEntry,
   saveMonthlyRentalIncome,
   updatePropertyRecord,
@@ -59,6 +60,7 @@ import {
   updateRenovation,
 } from './api'
 import { Login } from './components/Login'
+import { TenantPortal } from './components/TenantPortal'
 import {
   getExpiringWithinDays,
   getLastTenantActivity,
@@ -117,6 +119,11 @@ interface PropertyDraft {
   marketValue: number
   projectName: string
   developerName: string
+  numberOfRooms?: number
+  carParks?: number
+  squareFeet?: number
+  otherAppliances?: string
+  ceilingFans?: number
 }
 
 interface TenantDraft {
@@ -151,6 +158,9 @@ interface TenancyDraft {
   deductions: DeductionSet
   agentCommissionAmount: number
   specialClauses: string
+  signedAgreementUrl?: string
+  moveInPicturesUrl?: string
+  moveOutPicturesUrl?: string
 }
 
 type ReportKey =
@@ -225,6 +235,11 @@ const emptyPropertyDraft = (): PropertyDraft => ({
   marketValue: 0,
   projectName: '',
   developerName: '',
+  numberOfRooms: undefined,
+  carParks: undefined,
+  squareFeet: undefined,
+  otherAppliances: '',
+  ceilingFans: undefined,
 })
 
 const emptyTenantDraft = (): TenantDraft => ({
@@ -259,6 +274,9 @@ const emptyTenancyDraft = (): TenancyDraft => ({
   deductions: emptyDeductions(),
   agentCommissionAmount: 0,
   specialClauses: '',
+  signedAgreementUrl: '',
+  moveInPicturesUrl: '',
+  moveOutPicturesUrl: '',
 })
 
 const createEmptyState = (): RentalSystemState => ({
@@ -347,6 +365,7 @@ function Drawer({
 function App() {
   const reduceMotion = useReducedMotion()
   const [isAuthenticated, setIsAuthenticated] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [state, setState] = useState<RentalSystemState>(() => createEmptyState())
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [bootstrapError, setBootstrapError] = useState('')
@@ -454,6 +473,7 @@ function App() {
         const response = await fetchBootstrap()
         if (cancelled) return
         setState(response.state)
+        setCurrentUser(response.currentUser)
         setSelectedPropertyId(response.state.properties[0]?.id || null)
         setSelectedTenancyId(response.state.tenancies[0]?.id || null)
         setBootstrapError('')
@@ -462,6 +482,7 @@ function App() {
         if (cancelled) return
         if (error instanceof UnauthorizedError) {
           setIsAuthenticated(false)
+          setCurrentUser(null)
         } else {
           setBootstrapError(error instanceof Error ? error.message : 'Unable to load rental operations data.')
         }
@@ -620,6 +641,11 @@ function App() {
         marketValue: Number(propertyDraft.marketValue || 0),
         projectName: propertyDraft.projectName,
         developerName: propertyDraft.developerName,
+        numberOfRooms: propertyDraft.numberOfRooms ? Number(propertyDraft.numberOfRooms) : undefined,
+        carParks: propertyDraft.carParks ? Number(propertyDraft.carParks) : undefined,
+        squareFeet: propertyDraft.squareFeet ? Number(propertyDraft.squareFeet) : undefined,
+        otherAppliances: propertyDraft.otherAppliances,
+        ceilingFans: propertyDraft.ceilingFans ? Number(propertyDraft.ceilingFans) : undefined,
       })
       const createdProperty = response.state.properties.reduce<Property | null>((current, property) => {
         if (!current) return property
@@ -732,6 +758,11 @@ function App() {
       marketValue: property.marketValue,
       projectName: property.projectName,
       developerName: property.developerName,
+      numberOfRooms: property.numberOfRooms,
+      carParks: property.carParks,
+      squareFeet: property.squareFeet,
+      otherAppliances: property.otherAppliances,
+      ceilingFans: property.ceilingFans,
     })
     setPropertyEditError('')
     setPropertyEditDrawer(true)
@@ -755,6 +786,11 @@ function App() {
         marketValue: Number(propertyEditDraft.marketValue || 0),
         projectName: propertyEditDraft.projectName,
         developerName: propertyEditDraft.developerName,
+        numberOfRooms: propertyEditDraft.numberOfRooms ? Number(propertyEditDraft.numberOfRooms) : undefined,
+        carParks: propertyEditDraft.carParks ? Number(propertyEditDraft.carParks) : undefined,
+        squareFeet: propertyEditDraft.squareFeet ? Number(propertyEditDraft.squareFeet) : undefined,
+        otherAppliances: propertyEditDraft.otherAppliances,
+        ceilingFans: propertyEditDraft.ceilingFans ? Number(propertyEditDraft.ceilingFans) : undefined,
       })
       applyServerState(response.state)
       setPropertyEditDrawer(false)
@@ -846,6 +882,9 @@ function App() {
       closedEarly: tenancy.closedEarly,
       agentCommissionAmount: tenancy.agentCommissionAmount || 0,
       specialClauses: tenancy.specialClauses || '',
+      signedAgreementUrl: tenancy.signedAgreementUrl || '',
+      moveInPicturesUrl: tenancy.moveInPicturesUrl || '',
+      moveOutPicturesUrl: tenancy.moveOutPicturesUrl || '',
     })
     setTenancyEditError('')
     setTenancyEditDrawer(true)
@@ -875,6 +914,11 @@ function App() {
         closedEarly: tenancyEditDraft.closedEarly,
         rentalTerms: tenancyEditDraft.rentalTerms,
         deductions: tenancyEditDraft.deductions,
+        agentCommissionAmount: tenancyEditDraft.agentCommissionAmount ? Number(tenancyEditDraft.agentCommissionAmount) : undefined,
+        specialClauses: tenancyEditDraft.specialClauses,
+        signedAgreementUrl: tenancyEditDraft.signedAgreementUrl,
+        moveInPicturesUrl: tenancyEditDraft.moveInPicturesUrl,
+        moveOutPicturesUrl: tenancyEditDraft.moveOutPicturesUrl,
       })
       applyServerState(response.state)
       setTenancyEditDrawer(false)
@@ -944,6 +988,11 @@ function App() {
         status: deriveTenancyStatus(tenancyDraft),
         rentalTerms: tenancyDraft.rentalTerms,
         deductions: tenancyDraft.deductions,
+        agentCommissionAmount: tenancyDraft.agentCommissionAmount ? Number(tenancyDraft.agentCommissionAmount) : undefined,
+        specialClauses: tenancyDraft.specialClauses,
+        signedAgreementUrl: tenancyDraft.signedAgreementUrl,
+        moveInPicturesUrl: tenancyDraft.moveInPicturesUrl,
+        moveOutPicturesUrl: tenancyDraft.moveOutPicturesUrl,
       })
       const createdTenancy = response.state.tenancies.find(
         (tenancy) =>
@@ -1306,6 +1355,8 @@ function App() {
   const handleLogout = async () => {
     try {
       await fetchLogout()
+      setIsAuthenticated(false)
+      setCurrentUser(null)
       window.location.reload()
     } catch (e) {
       console.error(e)
@@ -1368,12 +1419,30 @@ function App() {
 
   if (isBootstrapping) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-900">
-        Loading...
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+          <p className="mt-4">Loading...</p>
+        </div>
       </div>
     )
   }
 
+  // Render Tenant Portal for tenant users
+  if (currentUser && currentUser.role === 'TENANT') {
+    return (
+      <TenantPortal
+        user={currentUser}
+        onLogout={async () => {
+          await fetchLogout()
+          setIsAuthenticated(false)
+          setCurrentUser(null)
+        }}
+      />
+    )
+  }
+
+  // Render Admin Dashboard for admin and employee users
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <div className="flex min-h-screen">
@@ -1565,6 +1634,11 @@ function App() {
                           <DataLine label="Project">{selectedProperty.projectName || '-'}</DataLine>
                           <DataLine label="Developer">{selectedProperty.developerName || '-'}</DataLine>
                           <DataLine label="SPA Price">{currency(selectedProperty.spaPrice)}</DataLine>
+                          <DataLine label="Size (sqft)">{selectedProperty.squareFeet || '-'}</DataLine>
+                          <DataLine label="Rooms">{selectedProperty.numberOfRooms || '-'}</DataLine>
+                          <DataLine label="Car Parks">{selectedProperty.carParks || '-'}</DataLine>
+                          <DataLine label="Ceiling Fans">{selectedProperty.ceilingFans || '-'}</DataLine>
+                          <DataLine label="Appliances">{selectedProperty.otherAppliances || '-'}</DataLine>
                           <div className="flex flex-wrap gap-2 pt-2">
                             <button
                               onClick={() => setRenovationDrawer(true)}
@@ -2916,6 +2990,41 @@ function App() {
               onChange={(value) => setPropertyDraft((prev) => ({ ...prev, marketValue: value }))}
             />
           </SectionCard>
+          <SectionCard title="Property Details & Inventory" description="Used to keep track of property specifications and available inventory.">
+            <div className="grid grid-cols-2 gap-4">
+              <LabeledInput
+                label="Square feet (size)"
+                type="number"
+                value={propertyDraft.squareFeet?.toString() || ''}
+                onChange={(value) => setPropertyDraft((prev) => ({ ...prev, squareFeet: value ? Number(value) : undefined }))}
+              />
+              <LabeledInput
+                label="Number of rooms"
+                type="number"
+                value={propertyDraft.numberOfRooms?.toString() || ''}
+                onChange={(value) => setPropertyDraft((prev) => ({ ...prev, numberOfRooms: value ? Number(value) : undefined }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <LabeledInput
+                label="Car parks"
+                type="number"
+                value={propertyDraft.carParks?.toString() || ''}
+                onChange={(value) => setPropertyDraft((prev) => ({ ...prev, carParks: value ? Number(value) : undefined }))}
+              />
+              <LabeledInput
+                label="Number of ceiling fans"
+                type="number"
+                value={propertyDraft.ceilingFans?.toString() || ''}
+                onChange={(value) => setPropertyDraft((prev) => ({ ...prev, ceilingFans: value ? Number(value) : undefined }))}
+              />
+            </div>
+            <LabeledInput
+              label="Other appliances (fridge, oven, etc)"
+              value={propertyDraft.otherAppliances || ''}
+              onChange={(value) => setPropertyDraft((prev) => ({ ...prev, otherAppliances: value }))}
+            />
+          </SectionCard>
           <SectionCard
             title="Agreement metadata"
             description="Optional document metadata that links the property to its records."
@@ -3112,6 +3221,28 @@ function App() {
               label="TM account"
               value={tenancyDraft.tmAccount}
               onChange={(value) => setTenancyDraft((prev) => ({ ...prev, tmAccount: value }))}
+            />
+          </SectionCard>
+          <SectionCard
+            title="Attachments"
+            description="Upload links to agreements and property condition media."
+            columnsClassName="md:grid-cols-2"
+          >
+            <LabeledInput
+              label="Signed Tenancy Agreement URL (.pdf)"
+              value={tenancyDraft.signedAgreementUrl || ''}
+              onChange={(value) => setTenancyDraft((prev) => ({ ...prev, signedAgreementUrl: value }))}
+              helper="Link to the signed PDF agreement"
+            />
+            <LabeledInput
+              label="Move-in Pictures/Videos URL"
+              value={tenancyDraft.moveInPicturesUrl || ''}
+              onChange={(value) => setTenancyDraft((prev) => ({ ...prev, moveInPicturesUrl: value }))}
+            />
+            <LabeledInput
+              label="Move-out Pictures/Videos URL"
+              value={tenancyDraft.moveOutPicturesUrl || ''}
+              onChange={(value) => setTenancyDraft((prev) => ({ ...prev, moveOutPicturesUrl: value }))}
             />
           </SectionCard>
           <SectionCard
@@ -3440,6 +3571,41 @@ function App() {
               onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, marketValue: value }))}
             />
           </SectionCard>
+          <SectionCard title="Property Details & Inventory" description="Used to keep track of property specifications and available inventory.">
+            <div className="grid grid-cols-2 gap-4">
+              <LabeledInput
+                label="Square feet (size)"
+                type="number"
+                value={propertyEditDraft.squareFeet?.toString() || ''}
+                onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, squareFeet: value ? Number(value) : undefined }))}
+              />
+              <LabeledInput
+                label="Number of rooms"
+                type="number"
+                value={propertyEditDraft.numberOfRooms?.toString() || ''}
+                onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, numberOfRooms: value ? Number(value) : undefined }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <LabeledInput
+                label="Car parks"
+                type="number"
+                value={propertyEditDraft.carParks?.toString() || ''}
+                onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, carParks: value ? Number(value) : undefined }))}
+              />
+              <LabeledInput
+                label="Number of ceiling fans"
+                type="number"
+                value={propertyEditDraft.ceilingFans?.toString() || ''}
+                onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, ceilingFans: value ? Number(value) : undefined }))}
+              />
+            </div>
+            <LabeledInput
+              label="Other appliances (fridge, oven, etc)"
+              value={propertyEditDraft.otherAppliances || ''}
+              onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, otherAppliances: value }))}
+            />
+          </SectionCard>
           <SectionCard
             title="Agreement metadata"
             description="Optional document metadata that links the property to its records."
@@ -3632,6 +3798,28 @@ function App() {
               label="TM account"
               value={tenancyEditDraft.tmAccount}
               onChange={(value) => setTenancyEditDraft((prev) => ({ ...prev, tmAccount: value }))}
+            />
+          </SectionCard>
+          <SectionCard
+            title="Attachments"
+            description="Upload links to agreements and property condition media."
+            columnsClassName="md:grid-cols-2"
+          >
+            <LabeledInput
+              label="Signed Tenancy Agreement URL (.pdf)"
+              value={tenancyEditDraft.signedAgreementUrl || ''}
+              onChange={(value) => setTenancyEditDraft((prev) => ({ ...prev, signedAgreementUrl: value }))}
+              helper="Link to the signed PDF agreement"
+            />
+            <LabeledInput
+              label="Move-in Pictures/Videos URL"
+              value={tenancyEditDraft.moveInPicturesUrl || ''}
+              onChange={(value) => setTenancyEditDraft((prev) => ({ ...prev, moveInPicturesUrl: value }))}
+            />
+            <LabeledInput
+              label="Move-out Pictures/Videos URL"
+              value={tenancyEditDraft.moveOutPicturesUrl || ''}
+              onChange={(value) => setTenancyEditDraft((prev) => ({ ...prev, moveOutPicturesUrl: value }))}
             />
           </SectionCard>
           <SectionCard
@@ -5376,6 +5564,15 @@ function TenantInspector({
               <TimelineItem label="Move-in Date" value={formatDate(tenancy.moveInDate)} active />
               <TimelineItem label="Expiry" value={formatDate(tenancy.expirationDate)} muted />
               <DataLine label="Tenure">{tenancy.tenure || '-'}</DataLine>
+              {tenancy.signedAgreementUrl && (
+                <DataLine label="Agreement"><a href={tenancy.signedAgreementUrl} target="_blank" rel="noreferrer" className="text-cyan-600 hover:underline hover:text-cyan-800">View Document</a></DataLine>
+              )}
+              {tenancy.moveInPicturesUrl && (
+                <DataLine label="Move-in Media"><a href={tenancy.moveInPicturesUrl} target="_blank" rel="noreferrer" className="text-cyan-600 hover:underline hover:text-cyan-800">View Media</a></DataLine>
+              )}
+              {tenancy.moveOutPicturesUrl && (
+                <DataLine label="Move-out Media"><a href={tenancy.moveOutPicturesUrl} target="_blank" rel="noreferrer" className="text-cyan-600 hover:underline hover:text-cyan-800">View Media</a></DataLine>
+              )}
             </div>
             <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
               <button
@@ -5650,7 +5847,7 @@ function LabeledInput({
   label: string
   value: string
   onChange: (value: string) => void
-  type?: 'text' | 'date'
+  type?: 'text' | 'date' | 'number'
   helper?: string
   error?: string
   required?: boolean

@@ -1,0 +1,1250 @@
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Bell,
+  Home,
+  CreditCard,
+  Wrench,
+  Zap,
+  FileText,
+  User,
+  LogOut,
+  Upload,
+  Calendar,
+  DollarSign,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  X,
+  Send,
+  ChevronDown,
+  Plus,
+  Download,
+} from 'lucide-react'
+
+type Section = 'dashboard' | 'tenancy' | 'payments' | 'maintenance' | 'utilities' | 'documents' | 'profile'
+
+interface TenantPortalProps {
+  user: {
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+    role: string
+  }
+  onLogout: () => void
+}
+
+export function TenantPortal({ user, onLogout }: TenantPortalProps) {
+  const [section, setSection] = useState<Section>('dashboard')
+  const [tenancy, setTenancy] = useState<any>(null)
+  const [property, setProperty] = useState<any>(null)
+  const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([])
+  const [paymentReceipts, setPaymentReceipts] = useState<any[]>([])
+  const [utilityBills, setUtilityBills] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showMobileNav, setShowMobileNav] = useState(false)
+  
+  // Maintenance form state
+  const [maintenanceDrawer, setMaintenanceDrawer] = useState(false)
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    category: 'PLUMBING' as const,
+    title: '',
+    description: '',
+    urgency: 'MEDIUM' as const,
+  })
+  const [maintenanceSubmitting, setMaintenanceSubmitting] = useState(false)
+  
+  // Payment receipt form state
+  const [paymentDrawer, setPaymentDrawer] = useState(false)
+  const [paymentForm, setPaymentForm] = useState({
+    paymentDate: new Date().toISOString().split('T')[0],
+    amount: '',
+    paymentMethod: 'BANK_TRANSFER' as const,
+    referenceNumber: '',
+    notes: '',
+  })
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false)
+  
+  // Utility bill form state
+  const [utilityDrawer, setUtilityDrawer] = useState(false)
+  const [utilityForm, setUtilityForm] = useState({
+    billType: 'ELECTRICITY' as const,
+    billMonth: new Date().toISOString().slice(0, 7),
+    amount: '',
+    dueDate: '',
+    notes: '',
+  })
+  const [utilitySubmitting, setUtilitySubmitting] = useState(false)
+
+  useEffect(() => {
+    loadTenancyData()
+    loadMaintenanceRequests()
+    loadPaymentReceipts()
+    loadUtilityBills()
+    loadNotifications()
+  }, [])
+
+  const loadTenancyData = async () => {
+    try {
+      const res = await fetch('/api/tenant/my-tenancy')
+      if (res.ok) {
+        const data = await res.json()
+        setTenancy(data.tenancies[0] || null)
+      }
+    } catch (error) {
+      console.error('Failed to load tenancy data', error)
+    }
+  }
+
+  const loadMaintenanceRequests = async () => {
+    try {
+      const res = await fetch('/api/maintenance-requests')
+      if (res.ok) {
+        const data = await res.json()
+        setMaintenanceRequests(data.requests)
+      }
+    } catch (error) {
+      console.error('Failed to load maintenance requests', error)
+    }
+  }
+
+  const loadPaymentReceipts = async () => {
+    try {
+      const res = await fetch('/api/payment-receipts')
+      if (res.ok) {
+        const data = await res.json()
+        setPaymentReceipts(data.receipts)
+      }
+    } catch (error) {
+      console.error('Failed to load payment receipts', error)
+    }
+  }
+
+  const loadUtilityBills = async () => {
+    try {
+      const res = await fetch('/api/utility-bills')
+      if (res.ok) {
+        const data = await res.json()
+        setUtilityBills(data.bills)
+      }
+    } catch (error) {
+      console.error('Failed to load utility bills', error)
+    }
+  }
+
+  const loadNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications')
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data.notifications)
+      }
+    } catch (error) {
+      console.error('Failed to load notifications', error)
+    }
+  }
+
+  const submitMaintenanceRequest = async () => {
+    if (!tenancy || !maintenanceForm.title || !maintenanceForm.description) return
+    
+    setMaintenanceSubmitting(true)
+    try {
+      const res = await fetch('/api/maintenance-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenancyId: tenancy.id,
+          ...maintenanceForm,
+        }),
+      })
+      
+      if (res.ok) {
+        await loadMaintenanceRequests()
+        await loadNotifications()
+        setMaintenanceDrawer(false)
+        setMaintenanceForm({
+          category: 'PLUMBING',
+          title: '',
+          description: '',
+          urgency: 'MEDIUM',
+        })
+        alert('Maintenance request submitted successfully!')
+      } else {
+        alert('Failed to submit maintenance request')
+      }
+    } catch (error) {
+      alert('Failed to submit maintenance request')
+    } finally {
+      setMaintenanceSubmitting(false)
+    }
+  }
+
+  const submitPaymentReceipt = async () => {
+    if (!tenancy || !paymentForm.amount) return
+    
+    setPaymentSubmitting(true)
+    try {
+      const res = await fetch('/api/payment-receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenancyId: tenancy.id,
+          ...paymentForm,
+          amount: parseFloat(paymentForm.amount),
+          fileName: `receipt_${Date.now()}.pdf`,
+        }),
+      })
+      
+      if (res.ok) {
+        await loadPaymentReceipts()
+        await loadNotifications()
+        setPaymentDrawer(false)
+        setPaymentForm({
+          paymentDate: new Date().toISOString().split('T')[0],
+          amount: '',
+          paymentMethod: 'BANK_TRANSFER',
+          referenceNumber: '',
+          notes: '',
+        })
+        alert('Payment receipt uploaded successfully!')
+      } else {
+        alert('Failed to upload payment receipt')
+      }
+    } catch (error) {
+      alert('Failed to upload payment receipt')
+    } finally {
+      setPaymentSubmitting(false)
+    }
+  }
+
+  const submitUtilityBill = async () => {
+    if (!tenancy || !utilityForm.amount) return
+    
+    setUtilitySubmitting(true)
+    try {
+      const res = await fetch('/api/utility-bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenancyId: tenancy.id,
+          ...utilityForm,
+          amount: parseFloat(utilityForm.amount),
+          fileName: `bill_${utilityForm.billType}_${utilityForm.billMonth}.pdf`,
+        }),
+      })
+      
+      if (res.ok) {
+        await loadUtilityBills()
+        setUtilityDrawer(false)
+        setUtilityForm({
+          billType: 'ELECTRICITY',
+          billMonth: new Date().toISOString().slice(0, 7),
+          amount: '',
+          dueDate: '',
+          notes: '',
+        })
+        alert('Utility bill uploaded successfully!')
+      } else {
+        alert('Failed to upload utility bill')
+      }
+    } catch (error) {
+      alert('Failed to upload utility bill')
+    } finally {
+      setUtilitySubmitting(false)
+    }
+  }
+
+  const markNotificationRead = async (id: string) => {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { method: 'PUT' })
+      await loadNotifications()
+    } catch (error) {
+      console.error('Failed to mark notification as read', error)
+    }
+  }
+
+  const unreadCount = notifications.filter(n => !n.isRead).length
+
+  const navItems = [
+    { id: 'dashboard' as Section, label: 'Dashboard', icon: Home },
+    { id: 'tenancy' as Section, label: 'My Tenancy', icon: FileText },
+    { id: 'payments' as Section, label: 'Payments', icon: CreditCard },
+    { id: 'maintenance' as Section, label: 'Maintenance', icon: Wrench },
+    { id: 'utilities' as Section, label: 'Utility Bills', icon: Zap },
+    { id: 'profile' as Section, label: 'Profile', icon: User },
+  ]
+
+  const currency = (value: number) =>
+    new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value || 0)
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-MY', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      PENDING: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
+      VERIFIED: 'bg-green-500/10 text-green-600 border-green-500/20',
+      REJECTED: 'bg-red-500/10 text-red-600 border-red-500/20',
+      SUBMITTED: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      ACKNOWLEDGED: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
+      IN_PROGRESS: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+      RESOLVED: 'bg-green-500/10 text-green-600 border-green-500/20',
+      CLOSED: 'bg-gray-500/10 text-gray-600 border-gray-500/20',
+      UPLOADED: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      PAID: 'bg-green-500/10 text-green-600 border-green-500/20',
+      OVERDUE: 'bg-red-500/10 text-red-600 border-red-500/20',
+    }
+    return colors[status] || 'bg-gray-500/10 text-gray-600 border-gray-500/20'
+  }
+
+  return (
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden md:flex md:w-64 md:flex-col border-r border-slate-200 bg-white">
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <Home className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-slate-900">Tenant Portal</h2>
+              <p className="text-xs text-slate-500">{user.firstName} {user.lastName}</p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setSection(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                section === item.id
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <item.icon className="w-5 h-5" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-slate-200">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-all"
+          >
+            <LogOut className="w-5 h-5" />
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Navigation */}
+      {showMobileNav && (
+        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm" onClick={() => setShowMobileNav(false)}>
+          <motion.div
+            initial={{ x: -300 }}
+            animate={{ x: 0 }}
+            exit={{ x: -300 }}
+            className="w-64 h-full bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-slate-200">
+              <h2 className="font-semibold text-slate-900">Tenant Portal</h2>
+              <p className="text-xs text-slate-500">{user.firstName} {user.lastName}</p>
+            </div>
+            <nav className="p-4 space-y-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setSection(item.id)
+                    setShowMobileNav(false)
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${
+                    section === item.id
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'text-slate-600'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.label}
+                </button>
+              ))}
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600"
+              >
+                <LogOut className="w-5 h-5" />
+                Sign Out
+              </button>
+            </nav>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar */}
+        <header className="bg-white border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowMobileNav(true)}
+                className="md:hidden p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <Home className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-xl font-semibold text-slate-900">
+                  {navItems.find(item => item.id === section)?.label}
+                </h1>
+                <p className="text-sm text-slate-500">Welcome back, {user.firstName}!</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  <Bell className="w-5 h-5 text-slate-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-200 z-50">
+                    <div className="p-4 border-b border-slate-200">
+                      <h3 className="font-semibold text-slate-900">Notifications</h3>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500">
+                          <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p>No notifications</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div
+                            key={notif.id}
+                            className={`p-4 border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${
+                              !notif.isRead ? 'bg-blue-50/50' : ''
+                            }`}
+                            onClick={() => markNotificationRead(notif.id)}
+                          >
+                            <p className="font-medium text-sm text-slate-900">{notif.title}</p>
+                            <p className="text-xs text-slate-600 mt-1">{notif.message}</p>
+                            <p className="text-xs text-slate-400 mt-2">{formatDate(notif.createdAt)}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <main className="flex-1 overflow-auto p-6">
+          <AnimatePresence mode="wait">
+            {section === 'dashboard' && (
+              <DashboardSection
+                tenancy={tenancy}
+                maintenanceRequests={maintenanceRequests}
+                paymentReceipts={paymentReceipts}
+                currency={currency}
+                formatDate={formatDate}
+                getStatusColor={getStatusColor}
+              />
+            )}
+
+            {section === 'tenancy' && (
+              <TenancySection tenancy={tenancy} currency={currency} formatDate={formatDate} />
+            )}
+
+            {section === 'payments' && (
+              <PaymentsSection
+                tenancy={tenancy}
+                paymentReceipts={paymentReceipts}
+                currency={currency}
+                formatDate={formatDate}
+                getStatusColor={getStatusColor}
+                onUpload={() => setPaymentDrawer(true)}
+              />
+            )}
+
+            {section === 'maintenance' && (
+              <MaintenanceSection
+                maintenanceRequests={maintenanceRequests}
+                formatDate={formatDate}
+                getStatusColor={getStatusColor}
+                onSubmit={() => setMaintenanceDrawer(true)}
+              />
+            )}
+
+            {section === 'utilities' && (
+              <UtilitiesSection
+                utilityBills={utilityBills}
+                currency={currency}
+                formatDate={formatDate}
+                getStatusColor={getStatusColor}
+                onUpload={() => setUtilityDrawer(true)}
+              />
+            )}
+
+            {section === 'profile' && <ProfileSection user={user} tenancy={tenancy} />}
+          </AnimatePresence>
+        </main>
+      </div>
+
+      {/* Maintenance Request Drawer */}
+      {maintenanceDrawer && (
+        <Drawer
+          title="Submit Maintenance Request"
+          open={maintenanceDrawer}
+          onClose={() => setMaintenanceDrawer(false)}
+          onSubmit={submitMaintenanceRequest}
+          submitting={maintenanceSubmitting}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
+              <select
+                value={maintenanceForm.category}
+                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, category: e.target.value as any })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              >
+                <option value="PLUMBING">Plumbing</option>
+                <option value="ELECTRICAL">Electrical</option>
+                <option value="AC">Air Conditioning</option>
+                <option value="APPLIANCES">Appliances</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
+              <input
+                type="text"
+                value={maintenanceForm.title}
+                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, title: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+                placeholder="Brief description of the issue"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+              <textarea
+                value={maintenanceForm.description}
+                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, description: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2 h-32"
+                placeholder="Detailed description of the issue..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Urgency</label>
+              <select
+                value={maintenanceForm.urgency}
+                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, urgency: e.target.value as any })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="EMERGENCY">Emergency</option>
+              </select>
+            </div>
+
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+              <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+              <p className="text-sm text-slate-600">Upload photos (simulated)</p>
+              <p className="text-xs text-slate-400 mt-1">Click to select files</p>
+            </div>
+          </div>
+        </Drawer>
+      )}
+
+      {/* Payment Receipt Drawer */}
+      {paymentDrawer && (
+        <Drawer
+          title="Upload Payment Receipt"
+          open={paymentDrawer}
+          onClose={() => setPaymentDrawer(false)}
+          onSubmit={submitPaymentReceipt}
+          submitting={paymentSubmitting}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Payment Date</label>
+              <input
+                type="date"
+                value={paymentForm.paymentDate}
+                onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Amount (MYR)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+                placeholder="0.00"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
+              <select
+                value={paymentForm.paymentMethod}
+                onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value as any })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              >
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="CASH">Cash</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="ONLINE">Online Payment</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Reference Number</label>
+              <input
+                type="text"
+                value={paymentForm.referenceNumber}
+                onChange={(e) => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+                placeholder="Transaction reference"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
+              <textarea
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2 h-24"
+                placeholder="Additional notes..."
+              />
+            </div>
+
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+              <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+              <p className="text-sm text-slate-600">Upload receipt (simulated)</p>
+              <p className="text-xs text-slate-400 mt-1">PDF, JPG, PNG accepted</p>
+            </div>
+          </div>
+        </Drawer>
+      )}
+
+      {/* Utility Bill Drawer */}
+      {utilityDrawer && (
+        <Drawer
+          title="Upload Utility Bill"
+          open={utilityDrawer}
+          onClose={() => setUtilityDrawer(false)}
+          onSubmit={submitUtilityBill}
+          submitting={utilitySubmitting}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Bill Type</label>
+              <select
+                value={utilityForm.billType}
+                onChange={(e) => setUtilityForm({ ...utilityForm, billType: e.target.value as any })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              >
+                <option value="ELECTRICITY">Electricity</option>
+                <option value="WATER">Water</option>
+                <option value="GAS">Gas</option>
+                <option value="INTERNET">Internet</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Bill Month</label>
+              <input
+                type="month"
+                value={utilityForm.billMonth}
+                onChange={(e) => setUtilityForm({ ...utilityForm, billMonth: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Amount (MYR)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={utilityForm.amount}
+                onChange={(e) => setUtilityForm({ ...utilityForm, amount: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+                placeholder="0.00"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Due Date</label>
+              <input
+                type="date"
+                value={utilityForm.dueDate}
+                onChange={(e) => setUtilityForm({ ...utilityForm, dueDate: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
+              <textarea
+                value={utilityForm.notes}
+                onChange={(e) => setUtilityForm({ ...utilityForm, notes: e.target.value })}
+                className="w-full border border-slate-300 rounded-lg px-4 py-2 h-24"
+                placeholder="Additional notes..."
+              />
+            </div>
+
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+              <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+              <p className="text-sm text-slate-600">Upload bill (simulated)</p>
+              <p className="text-xs text-slate-400 mt-1">PDF, JPG, PNG accepted</p>
+            </div>
+          </div>
+        </Drawer>
+      )}
+    </div>
+  )
+}
+
+// Dashboard Section
+function DashboardSection({ tenancy, maintenanceRequests, paymentReceipts, currency, formatDate, getStatusColor }: any) {
+  const pendingMaintenance = maintenanceRequests.filter((r: any) => r.status === 'SUBMITTED' || r.status === 'ACKNOWLEDGED').length
+  const pendingPayments = paymentReceipts.filter((r: any) => r.verificationStatus === 'PENDING').length
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-600">Monthly Rent</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">
+                {tenancy ? currency(tenancy.rentalTerms.monthlyGross) : '-'}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-600">Pending Requests</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{pendingMaintenance}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+              <Wrench className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-600">Payment Verifications</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{pendingPayments}</p>
+            </div>
+            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+              <Clock className="w-6 h-6 text-yellow-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lease Info */}
+      {tenancy && (
+        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-6 text-white">
+          <h3 className="text-lg font-semibold mb-4">Lease Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-indigo-100 text-sm">Property</p>
+              <p className="font-semibold mt-1">{tenancy.property.address.streetAddress}</p>
+            </div>
+            <div>
+              <p className="text-indigo-100 text-sm">Lease Start</p>
+              <p className="font-semibold mt-1">{formatDate(tenancy.commencementDate)}</p>
+            </div>
+            <div>
+              <p className="text-indigo-100 text-sm">Lease End</p>
+              <p className="font-semibold mt-1">{formatDate(tenancy.expirationDate)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <h3 className="font-semibold text-slate-900 mb-4">Recent Maintenance</h3>
+          {maintenanceRequests.length === 0 ? (
+            <p className="text-slate-500 text-center py-8">No maintenance requests yet</p>
+          ) : (
+            <div className="space-y-3">
+              {maintenanceRequests.slice(0, 3).map((request: any) => (
+                <div key={request.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                  <Wrench className="w-5 h-5 text-slate-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-slate-900 truncate">{request.title}</p>
+                    <p className="text-xs text-slate-500">{formatDate(request.submittedDate)}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(request.status)}`}>
+                    {request.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <h3 className="font-semibold text-slate-900 mb-4">Recent Payments</h3>
+          {paymentReceipts.length === 0 ? (
+            <p className="text-slate-500 text-center py-8">No payment receipts yet</p>
+          ) : (
+            <div className="space-y-3">
+              {paymentReceipts.slice(0, 3).map((receipt: any) => (
+                <div key={receipt.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                  <CreditCard className="w-5 h-5 text-slate-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-slate-900">{currency(receipt.amount)}</p>
+                    <p className="text-xs text-slate-500">{formatDate(receipt.paymentDate)}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(receipt.verificationStatus)}`}>
+                    {receipt.verificationStatus}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// Tenancy Section
+function TenancySection({ tenancy, currency, formatDate }: any) {
+  if (!tenancy) {
+    return (
+      <div className="bg-white rounded-xl p-12 text-center">
+        <Home className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+        <p className="text-slate-600">No active tenancy found</p>
+      </div>
+    )
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <h3 className="font-semibold text-lg text-slate-900 mb-6">Property Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="text-sm text-slate-600">Address</label>
+            <p className="font-medium text-slate-900 mt-1">
+              {tenancy.property.address.unitNumber} {tenancy.property.address.streetAddress}
+            </p>
+            <p className="text-slate-600">{tenancy.property.address.cityState}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Property Type</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.property.kind}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Project Name</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.property.projectName}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Developer</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.property.developerName}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <h3 className="font-semibold text-lg text-slate-900 mb-6">Lease Terms</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="text-sm text-slate-600">Commencement Date</label>
+            <p className="font-medium text-slate-900 mt-1">{formatDate(tenancy.commencementDate)}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Expiration Date</label>
+            <p className="font-medium text-slate-900 mt-1">{formatDate(tenancy.expirationDate)}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Tenure</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.tenure}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Monthly Rent</label>
+            <p className="font-semibold text-lg text-green-600 mt-1">{currency(tenancy.rentalTerms.monthlyGross)}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Rental Deposit</label>
+            <p className="font-medium text-slate-900 mt-1">{currency(tenancy.rentalTerms.rentalDeposit)}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Status</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.status}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <h3 className="font-semibold text-lg text-slate-900 mb-6">Utility Accounts</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="text-sm text-slate-600">Air Selangor</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.airSelangorAccount || '-'}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">TNB Account</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.tnbAccount || '-'}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">TM Account</label>
+            <p className="font-medium text-slate-900 mt-1">{tenancy.tmAccount || '-'}</p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// Payments Section
+function PaymentsSection({ tenancy, paymentReceipts, currency, formatDate, getStatusColor, onUpload }: any) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Payment History</h2>
+          <p className="text-sm text-slate-600">Upload and track your rent payments</p>
+        </div>
+        <button
+          onClick={onUpload}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+        >
+          <Upload className="w-4 h-4" />
+          Upload Receipt
+        </button>
+      </div>
+
+      {paymentReceipts.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 text-center border border-slate-200">
+          <CreditCard className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+          <p className="text-slate-600">No payment receipts uploaded yet</p>
+          <button
+            onClick={onUpload}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
+          >
+            Upload Your First Receipt
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Date</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Amount</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Method</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Reference</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Status</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {paymentReceipts.map((receipt: any) => (
+                <tr key={receipt.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 text-sm text-slate-900">{formatDate(receipt.paymentDate)}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-slate-900">{currency(receipt.amount)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{receipt.paymentMethod}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{receipt.referenceNumber || '-'}</td>
+                  <td className="px-6 py-4">
+                    <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(receipt.verificationStatus)}`}>
+                      {receipt.verificationStatus}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button className="text-indigo-600 hover:text-indigo-700 text-sm font-medium">
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// Maintenance Section
+function MaintenanceSection({ maintenanceRequests, formatDate, getStatusColor, onSubmit }: any) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Maintenance Requests</h2>
+          <p className="text-sm text-slate-600">Submit and track maintenance issues</p>
+        </div>
+        <button
+          onClick={onSubmit}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New Request
+        </button>
+      </div>
+
+      {maintenanceRequests.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 text-center border border-slate-200">
+          <Wrench className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+          <p className="text-slate-600">No maintenance requests yet</p>
+          <button
+            onClick={onSubmit}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
+          >
+            Submit Your First Request
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {maintenanceRequests.map((request: any) => (
+            <div key={request.id} className="bg-white rounded-xl p-6 border border-slate-200">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="font-semibold text-slate-900">{request.title}</h3>
+                    <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(request.status)}`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-2">{request.description}</p>
+                  <div className="flex items-center gap-4 text-xs text-slate-500">
+                    <span>Category: {request.category}</span>
+                    <span>Urgency: {request.urgency}</span>
+                    <span>Submitted: {formatDate(request.submittedDate)}</span>
+                  </div>
+                </div>
+              </div>
+              {request.comments.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">Comments:</p>
+                  {request.comments.map((comment: any) => (
+                    <div key={comment.id} className="text-sm text-slate-600 mb-2">
+                      <span className="font-medium">{comment.userName}:</span> {comment.comment}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// Utilities Section
+function UtilitiesSection({ utilityBills, currency, formatDate, getStatusColor, onUpload }: any) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Utility Bills</h2>
+          <p className="text-sm text-slate-600">Upload and track your utility bills</p>
+        </div>
+        <button
+          onClick={onUpload}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+        >
+          <Upload className="w-4 h-4" />
+          Upload Bill
+        </button>
+      </div>
+
+      {utilityBills.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 text-center border border-slate-200">
+          <Zap className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+          <p className="text-slate-600">No utility bills uploaded yet</p>
+          <button
+            onClick={onUpload}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
+          >
+            Upload Your First Bill
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {utilityBills.map((bill: any) => (
+            <div key={bill.id} className="bg-white rounded-xl p-6 border border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-blue-600" />
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(bill.status)}`}>
+                  {bill.status}
+                </span>
+              </div>
+              <h3 className="font-semibold text-slate-900 mb-1">{bill.billType}</h3>
+              <p className="text-sm text-slate-600 mb-4">{bill.billMonth}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-bold text-slate-900">{currency(bill.amount)}</span>
+                <span className="text-xs text-slate-500">Due: {formatDate(bill.dueDate)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// Profile Section
+function ProfileSection({ user, tenancy }: any) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <h3 className="font-semibold text-lg text-slate-900 mb-6">Personal Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="text-sm text-slate-600">First Name</label>
+            <p className="font-medium text-slate-900 mt-1">{user.firstName}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Last Name</label>
+            <p className="font-medium text-slate-900 mt-1">{user.lastName}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Email</label>
+            <p className="font-medium text-slate-900 mt-1">{user.email}</p>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Role</label>
+            <p className="font-medium text-slate-900 mt-1">{user.role}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <h3 className="font-semibold text-lg text-slate-900 mb-4">Account Settings</h3>
+        <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">
+          Change Password
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+// Drawer Component
+function Drawer({ title, open, onClose, onSubmit, submitting, children }: any) {
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, y: 100 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 100 }}
+        className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
+        <div className="p-6 border-t border-slate-200 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={submitting}
+            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Submit
+              </>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}

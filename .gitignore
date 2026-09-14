@@ -29,3 +29,11 @@ prisma/*.db-journal
 
 # Wrangler local variables
 .dev.vars
+
+# Tooling and Local
+.agents/
+.cursor/
+.wrangler/
+dev.db
+skills-lock.json
+test.md
