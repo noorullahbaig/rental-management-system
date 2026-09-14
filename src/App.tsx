@@ -1451,69 +1451,145 @@ function App() {
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 border-r border-slate-200 bg-[var(--surface)] p-5 lg:block">
-          <h1 className="mb-1 text-xl font-semibold">Rental Operations</h1>
-          <p className="mb-8 text-sm text-[var(--muted)]">Properties and tenancies cockpit</p>
-          <nav className="space-y-1">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setSection(item.id)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${section === item.id ? 'bg-[var(--primary)] text-slate-900' : 'text-slate-700 hover:bg-slate-100'}`}
-              >
-                <item.icon size={16} />
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
-        <main className="w-full">
-          <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-            <div className="flex items-center gap-3 px-4 py-3 lg:px-8">
-              <button className="rounded-md p-2 hover:bg-slate-100 lg:hidden" onClick={() => setShowMobileNav(true)}>
-                <Menu size={18} />
-              </button>
+        {/* Benchmarked Sidebar (Tenant Portal Aesthetic) */}
+        <aside className="hidden w-64 border-r border-slate-200 bg-white flex-col justify-between p-4 lg:flex flex-shrink-0">
+          <div>
+            {/* Brand Identity Header */}
+            <div className="flex items-center gap-3 px-2 py-2.5 mb-6 border-b border-slate-100">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm text-white flex-shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-sm font-bold text-slate-900 leading-tight truncate">Rental Operations</h1>
+                <p className="text-[11px] text-slate-400 font-medium">Admin Workspace</p>
+              </div>
+            </div>
 
-              <div className="relative max-w-xl flex-1">
-                <Search
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search serial, address, project, developer"
-                  className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none ring-[var(--primary)] focus:ring-2"
-                />
+            {/* Navigation items */}
+            <nav className="space-y-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setSection(item.id)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    section === item.id
+                      ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <item.icon size={18} className={section === item.id ? 'text-indigo-600' : 'text-slate-400'} />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Bottom Dock: Activity Log & User Profile */}
+          <div className="pt-4 border-t border-slate-100 space-y-2">
+            <button
+              onClick={() => {
+                loadSystemLogs()
+                setSystemLogsDrawer(true)
+              }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              title="System Activity Log"
+            >
+              <Bell size={15} className="text-slate-400" />
+              <span>System Activity Log</span>
+            </button>
+
+            <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  {currentUser?.firstName?.[0] || 'A'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">
+                    {currentUser?.firstName || 'Admin'} {currentUser?.lastName || ''}
+                  </p>
+                  <p className="text-[10px] text-slate-500 capitalize">{currentUser?.role?.toLowerCase() || 'admin'}</p>
+                </div>
               </div>
               <button
-                onClick={() => setPropertyDrawer(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-slate-900 hover:bg-[var(--primary-dark)]"
+                onClick={handleLogout}
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                title="Sign out"
               >
-                <Plus size={15} />
-                <span className="hidden sm:inline">Create property</span>
+                <PowerOff size={14} />
               </button>
-              
-              <div className="hidden items-center gap-4 text-sm text-slate-600 md:flex ml-2 border-l border-slate-200 pl-4">
-                <button
-                  onClick={() => {
-                    loadSystemLogs()
-                    setSystemLogsDrawer(true)
-                  }}
-                  className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-100 transition-colors"
-                  title="System Activity Log"
-                >
-                  <Bell size={16} />
-                  <span>Activity</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="w-full flex-1 overflow-hidden flex flex-col">
+          {/* Benchmarked Top Header (Context-Aware, Single Clean Search & Action) */}
+          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur px-4 py-2.5 lg:px-8 flex-shrink-0">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button className="rounded-md p-1.5 hover:bg-slate-100 lg:hidden" onClick={() => setShowMobileNav(true)}>
+                  <Menu size={18} />
                 </button>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 rounded-lg p-2 text-rose-600 hover:bg-rose-50 transition-colors"
-                  title="Log out"
-                >
-                  <PowerOff size={16} />
-                  <span>Logout</span>
-                </button>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 capitalize">
+                    {section === 'overview' ? 'Command Center' : section}
+                  </h2>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {section === 'properties' && `${state.properties.length} Units · ${Math.round((state.tenancies.filter(t => !t.closedEarly && t.status !== 'Closed Early' && t.status !== 'Expired').length / (state.properties.length || 1)) * 100)}% Occupied`}
+                    {section === 'overview' && 'Portfolio Cash & Operations Overview'}
+                    {section === 'tenants' && 'Active Leases & Tenant Desk'}
+                    {section === 'reports' && 'Financial Statements & Audits'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Side: Single Unified Search & Primary Action */}
+              <div className="flex items-center gap-3">
+                <div className="relative w-64 md:w-80">
+                  <Search
+                    size={14}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search properties, tenants..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-1.5 pl-8 pr-3 text-xs text-slate-900 outline-none ring-indigo-500 focus:bg-white focus:ring-1 transition-all"
+                  />
+                </div>
+
+                {section === 'properties' && (
+                  <button
+                    onClick={() => {
+                      setPropertyWizardStep(1)
+                      setPropertyDrawer(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all flex-shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>Add Property</span>
+                  </button>
+                )}
+
+                {section === 'overview' && (
+                  <button
+                    onClick={() => setTenancyDrawer(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all flex-shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>Setup Tenancy</span>
+                  </button>
+                )}
+
+                {section === 'tenants' && (
+                  <button
+                    onClick={() => setTenancyDrawer(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all flex-shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>New Tenancy</span>
+                  </button>
+                )}
               </div>
             </div>
           </header>
@@ -1564,6 +1640,7 @@ function App() {
                     tenancies={state.tenancies}
                     tenants={state.tenants}
                     selectedPropertyId={selectedPropertyId}
+                    searchQuery={query}
                     onSelectProperty={setSelectedPropertyId}
                     onOpenCreateProperty={() => {
                       setPropertyWizardStep(1);

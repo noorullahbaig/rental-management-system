@@ -26,6 +26,7 @@ interface PropertyWorkspaceProps {
   tenancies: Tenancy[]
   tenants: Tenant[]
   selectedPropertyId: string | null
+  searchQuery?: string
   onSelectProperty: (id: string) => void
   onOpenCreateProperty: () => void
   onOpenEditProperty: (property: Property) => void
@@ -52,9 +53,9 @@ export default function PropertyWorkspace({
   onEditRenovation,
   onOpenTenancyDrawer,
   onNavigate,
+  searchQuery = '',
 }: PropertyWorkspaceProps) {
   const [filter, setFilter] = useState<FilterType>('all')
-  const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('specs')
 
   // Find currently selected property or default to first
@@ -105,61 +106,40 @@ export default function PropertyWorkspace({
     <div className="grid gap-3.5 xl:grid-cols-[1.05fr_1.25fr] max-w-[1400px] h-[calc(100vh-140px)] min-h-[520px]">
       {/* LEFT COLUMN: Properties Registry Table */}
       <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm flex flex-col overflow-hidden">
-        {/* Top Control Bar */}
-        <div className="p-3 border-b border-slate-100 flex flex-col gap-2.5 bg-slate-50/50">
-          <div className="flex items-center justify-between">
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setFilter('all')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                  filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                All ({properties.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter('occupied')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                  filter === 'occupied' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600 hover:text-emerald-700'
-                }`}
-              >
-                Occupied ({occupiedCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter('vacant')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                  filter === 'vacant' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Vacant ({vacantCount})
-              </button>
-            </div>
-
+        {/* Top Control Bar: Clean Filter Pills */}
+        <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-lg">
             <button
               type="button"
-              onClick={onOpenCreateProperty}
-              className="inline-flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-sm transition-all"
+              onClick={() => setFilter('all')}
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <Plus className="w-3.5 h-3.5" />
-              Add Unit
+              All ({properties.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter('occupied')}
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                filter === 'occupied' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600 hover:text-emerald-700'
+              }`}
+            >
+              Occupied ({occupiedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter('vacant')}
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                filter === 'vacant' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Vacant ({vacantCount})
             </button>
           </div>
-
-          {/* Quick Search */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search serial, unit number, project..."
-              className="w-full bg-white border border-slate-200/90 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
+          <span className="text-[11px] text-slate-400 font-medium">
+            {filteredProperties.length} of {properties.length} shown
+          </span>
         </div>
 
         {/* Properties Table */}
