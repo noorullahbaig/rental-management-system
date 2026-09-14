@@ -77,6 +77,9 @@ const verifyPassword = (password: string, hash: string): boolean => {
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().basePath('/api')
 
 app.use('*', async (c, next) => {
+  if (!c.env.DB) {
+    return c.json({ error: 'Database binding (DB) is missing. Please configure D1 binding in Cloudflare Dashboard.', envKeys: Object.keys(c.env) }, 500)
+  }
   const adapter = new PrismaD1(c.env.DB)
   const prisma = new PrismaClient({ adapter })
   c.set('prisma', prisma)
@@ -140,6 +143,13 @@ const requireRole = (...roles: string[]) => {
 // ========================================
 // AUTH ROUTES
 // ========================================
+
+app.get('/debug-env', (c) => {
+  return c.json({
+    keys: Object.keys(c.env),
+    hasDB: !!c.env.DB
+  })
+})
 
 app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
   const body = c.req.valid('json')

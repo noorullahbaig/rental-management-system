@@ -10,7 +10,8 @@
     "db:seed": "node --experimental-strip-types prisma/seed.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "npm run build && wrangler pages dev dist"
+    "preview": "npm run build && wrangler pages dev dist",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "node --experimental-strip-types prisma/seed.ts"
