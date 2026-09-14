@@ -383,6 +383,7 @@ function App() {
   const [propertyDrawer, setPropertyDrawer] = useState(false)
   const [tenantDrawer, setTenantDrawer] = useState(false)
   const [tenancyDrawer, setTenancyDrawer] = useState(false)
+  const [tenancyWizardStep, setTenancyWizardStep] = useState(1)
   const [renovationDrawer, setRenovationDrawer] = useState(false)
   const [propertyCreateSaving, setPropertyCreateSaving] = useState(false)
   const [tenantCreateSaving, setTenantCreateSaving] = useState(false)
@@ -3117,19 +3118,47 @@ function App() {
         open={tenancyDrawer}
         onOpenChange={(open) => {
           setTenancyDrawer(open)
-          if (!open) setTenancyCreateError('')
+          if (!open) { setTenancyCreateError(''); setTenancyWizardStep(1); }
         }}
         widthClassName="max-w-4xl"
         footer={
-          <SaveButton
-            onClick={createTenancy}
-            disabled={!selectedPropertyId || !tenancyDraft.tenantId || !tenancyDraft.expirationDate}
-            busy={tenancyCreateSaving}
-            busyLabel="Saving tenancy..."
-            error={tenancyCreateError}
-          >
-            Save tenancy
-          </SaveButton>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex gap-1">
+              {[1, 2, 3].map(s => (
+                <div key={s} className={`w-16 h-2 rounded-full transition-colors duration-300 ${tenancyWizardStep >= s ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              {tenancyWizardStep > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setTenancyWizardStep(tenancyWizardStep - 1)}
+                  className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                >
+                  Back
+                </button>
+              )}
+              {tenancyWizardStep < 3 ? (
+                <button
+                  type="button"
+                  onClick={() => setTenancyWizardStep(tenancyWizardStep + 1)}
+                  className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors"
+                >
+                  Next Step
+                </button>
+              ) : (
+                <SaveButton
+                  onClick={createTenancy}
+                  disabled={!selectedPropertyId || !tenancyDraft.tenantId || !tenancyDraft.expirationDate}
+                  busy={tenancyCreateSaving}
+                  busyLabel="Saving..."
+                  error={tenancyCreateError}
+                >
+                  Save Tenancy
+                </SaveButton>
+              )}
+            </div>
+          </div>
         }
       >
         <div className="space-y-4">
@@ -3138,7 +3167,7 @@ function App() {
             <PanelSummary label="Tenant" value={state.tenants.find((tenant) => tenant.id === tenancyDraft.tenantId)?.name || 'Select a tenant'} />
             <PanelSummary label="Status" value={deriveTenancyStatus(tenancyDraft)} />
           </div>
-          <SectionCard
+          {tenancyWizardStep === 1 && (<div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4"><SectionCard
             title="Tenant and property assignment"
             description="Anchor the tenancy to the property and tenant before lease details."
           >
@@ -3202,7 +3231,8 @@ function App() {
               helper="For example: 12 months."
             />
           </SectionCard>
-          <SectionCard
+          </div>)}
+          {tenancyWizardStep === 2 && (<div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4"><SectionCard
             title="Utility accounts"
             description="Store the account references the tenant and operator will need."
             columnsClassName="md:grid-cols-3"
@@ -3245,7 +3275,8 @@ function App() {
               onChange={(value) => setTenancyDraft((prev) => ({ ...prev, moveOutPicturesUrl: value }))}
             />
           </SectionCard>
-          <SectionCard
+          </div>)}
+          {tenancyWizardStep === 3 && (<div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4"><SectionCard
             title="Rental terms"
             description="Use the same values that drive the monthly collection flow."
             columnsClassName="md:grid-cols-2 xl:grid-cols-3"
@@ -3448,6 +3479,7 @@ function App() {
               onChange={(value) => setTenancyDraft((prev) => ({ ...prev, specialClauses: value }))}
             />
           </SectionCard>
+          </div>)}
         </div>
       </Drawer>
 
