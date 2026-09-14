@@ -57,7 +57,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
 // Auth endpoints
 export const fetchCurrentUser = () => request<any>('/auth/me')
-export const fetchLogout = () => request<{ success: boolean }>('/auth/logout')
+export const fetchLogout = () => request<{ success: boolean }>('/auth/logout', { method: 'POST' })
 
 export const fetchBootstrap = () => request<BootstrapResponse>('/bootstrap')
 export const fetchProperties = () => request<{ properties: RentalSystemState['properties'] }>('/properties')

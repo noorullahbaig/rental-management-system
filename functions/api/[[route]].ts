@@ -204,8 +204,8 @@ app.post('/auth/login', zValidator('json', loginSchema), async (c) => {
 })
 
 app.post('/auth/logout', async (c) => {
-  deleteCookie(c, 'user_id')
-  deleteCookie(c, 'user_role')
+  deleteCookie(c, 'user_id', { path: '/' })
+  deleteCookie(c, 'user_role', { path: '/' })
   return c.json({ success: true })
 })
 
