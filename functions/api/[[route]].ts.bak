@@ -122,7 +122,7 @@ app.use('*', async (c, next) => {
   // Update last login
   await c.var.prisma.user.update({
     where: { id: userId },
-    data: { lastLoginAt: new Date().toISOString().split('T')[0] }
+    data: { lastLoginAt: new Date().toISOString() }
   }).catch(() => {}) // Silent fail
   
   c.set('user', user)
@@ -328,7 +328,7 @@ app.post('/users', requireRole('ADMIN'), zValidator('json', userInputSchema), as
       status: data.status || 'ACTIVE',
       firstName: data.firstName,
       lastName: data.lastName,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
     }
   })
 
@@ -478,7 +478,7 @@ app.post('/maintenance-requests', zValidator('json', maintenanceRequestSchema), 
       title: 'Maintenance Request Submitted',
       message: `Your maintenance request "${data.title}" has been submitted successfully.`,
       isRead: false,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
       relatedId: request.id,
     }
   })
@@ -526,7 +526,7 @@ app.put('/maintenance-requests/:id', requireRole('ADMIN', 'EMPLOYEE'), zValidato
         title: 'Maintenance Request Updated',
         message: `Your maintenance request has been updated to: ${data.status}`,
         isRead: false,
-        createdAt: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
         relatedId: request.id,
       }
     })
@@ -547,7 +547,7 @@ app.post('/maintenance-requests/:id/comments', zValidator('json', maintenanceCom
       userId: user.id,
       userName: `${user.firstName} ${user.lastName}`,
       comment,
-      timestamp: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toISOString(),
     }
   })
 
@@ -566,7 +566,7 @@ app.post('/maintenance-requests/:id/attachments', async (c) => {
       fileName: body.fileName,
       fileUrl: `/simulated-uploads/maintenance/${randomUUID()}_${body.fileName}`,
       uploadedBy: user.id,
-      uploadedAt: new Date().toISOString().split('T')[0],
+      uploadedAt: new Date().toISOString(),
       fileType: body.fileType || 'IMAGE',
       fileSize: body.fileSize || 0,
     }
@@ -614,7 +614,7 @@ app.post('/payment-receipts', zValidator('json', paymentReceiptSchema), async (c
       ...data,
       uploadedBy: user.id,
       receiptUrl: `/simulated-uploads/receipts/${randomUUID()}_${data.fileName}`,
-      uploadedAt: new Date().toISOString().split('T')[0],
+      uploadedAt: new Date().toISOString(),
       verificationStatus: 'PENDING',
     },
     include: {
@@ -640,7 +640,7 @@ app.put('/payment-receipts/:id/verify', requireRole('ADMIN', 'EMPLOYEE'), zValid
     data: {
       ...data,
       verifiedBy: user.id,
-      verificationDate: new Date().toISOString().split('T')[0],
+      verificationDate: new Date().toISOString(),
     },
     include: {
       tenancy: {
@@ -667,7 +667,7 @@ app.put('/payment-receipts/:id/verify', requireRole('ADMIN', 'EMPLOYEE'), zValid
           ? 'Your payment has been verified successfully.'
           : `Your payment was rejected. Reason: ${data.rejectionReason}`,
         isRead: false,
-        createdAt: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
         relatedId: receipt.id,
       }
     })
@@ -715,7 +715,7 @@ app.post('/utility-bills', zValidator('json', utilityBillSchema), async (c) => {
       ...data,
       uploadedBy: user.id,
       billUrl: `/simulated-uploads/bills/${randomUUID()}_${data.fileName}`,
-      uploadedAt: new Date().toISOString().split('T')[0],
+      uploadedAt: new Date().toISOString(),
       status: 'UPLOADED',
     },
     include: {

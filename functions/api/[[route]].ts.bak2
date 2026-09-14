@@ -455,7 +455,7 @@ app.post('/maintenance-requests', zValidator('json', maintenanceRequestSchema), 
       ...data,
       requestedBy: user.id,
       status: 'SUBMITTED',
-      submittedDate: new Date().toISOString().split('T')[0],
+      submittedDate: new Date().toISOString().split('T')[0].split('T')[0],
     },
     include: {
       tenancy: {
@@ -493,11 +493,11 @@ app.put('/maintenance-requests/:id', requireRole('ADMIN', 'EMPLOYEE'), zValidato
   const updateData: any = { ...data }
   
   if (data.status === 'ACKNOWLEDGED' && !updateData.acknowledgedDate) {
-    updateData.acknowledgedDate = new Date().toISOString().split('T')[0]
+    updateData.acknowledgedDate = new Date().toISOString().split('T')[0].split('T')[0]
   }
   
   if (data.status === 'RESOLVED' && !updateData.resolvedDate) {
-    updateData.resolvedDate = new Date().toISOString().split('T')[0]
+    updateData.resolvedDate = new Date().toISOString().split('T')[0].split('T')[0]
   }
 
   const request = await c.var.prisma.maintenanceRequest.update({
