@@ -67,7 +67,7 @@ const randomUUID = () => crypto.randomUUID()
 
 // Password hashing helper (matches seed.ts)
 const hashPassword = (password: string): string => {
-  return Buffer.from(password).toString('base64')
+  return btoa(password)
 }
 
 const verifyPassword = (password: string, hash: string): boolean => {
