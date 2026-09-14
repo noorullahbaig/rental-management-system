@@ -104,6 +104,19 @@ export interface Tenancy {
   moveOutPicturesUrl?: string
 }
 
+export type TenantDeskQueue = 'Needs action' | 'Late collection' | 'Renewals' | 'All tenancies'
+
+export type ReportKey =
+  | 'Statement of Account'
+  | 'Monthly P&L'
+  | 'Cash Account'
+  | 'Monthly Cash Collection'
+  | 'Arrears / Late Collection Aging'
+  | 'Rent Roll & Tenancy Status'
+  | 'Deposit Register'
+  | 'Expense & Depreciation Schedule'
+  | 'System Activity Log'
+
 export type ReportType =
   | 'Statement of Account'
   | 'Profit & Loss'
