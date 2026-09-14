@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { generateRentObligations } from './TenantPortalHelpers'
 import {
   Bell,
   Home,
@@ -300,6 +301,8 @@ export function TenantPortal({ user, onLogout }: TenantPortalProps) {
       UPLOADED: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
       PAID: 'bg-green-500/10 text-green-600 border-green-500/20',
       OVERDUE: 'bg-red-500/10 text-red-600 border-red-500/20',
+      UNPAID: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+      PENDING_VERIFICATION: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
     }
     return colors[status] || 'bg-gray-500/10 text-gray-600 border-gray-500/20'
   }
@@ -738,6 +741,9 @@ export function TenantPortal({ user, onLogout }: TenantPortalProps) {
 function DashboardSection({ tenancy, maintenanceRequests, paymentReceipts, currency, formatDate, getStatusColor }: any) {
   const pendingMaintenance = maintenanceRequests.filter((r: any) => r.status === 'SUBMITTED' || r.status === 'ACKNOWLEDGED').length
   const pendingPayments = paymentReceipts.filter((r: any) => r.verificationStatus === 'PENDING').length
+  const rentObligations = generateRentObligations(tenancy, paymentReceipts);
+  const nextObligation = rentObligations.find(o: any => o.status === 'UNPAID' || o.status === 'OVERDUE') || rentObligations[0];
+
 
   return (
     <motion.div
@@ -751,10 +757,15 @@ function DashboardSection({ tenancy, maintenanceRequests, paymentReceipts, curre
         <div className="bg-white rounded-xl p-6 border border-slate-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-600">Monthly Rent</p>
+              <p className="text-sm text-slate-600">Next Rent Due</p>
               <p className="text-2xl font-bold text-slate-900 mt-1">
-                {tenancy ? currency(tenancy.rentalTerms.monthlyGross) : '-'}
+                {nextObligation ? currency(nextObligation.amount) : (tenancy ? currency(tenancy.monthlyGross) : '-')}
               </p>
+              {nextObligation && (
+                <p className={`text-xs mt-1 font-medium ${nextObligation.status === 'OVERDUE' ? 'text-red-500' : 'text-slate-500'}`}>
+                  {nextObligation.status === 'OVERDUE' ? 'Overdue!' : `Due ${formatDate(nextObligation.dueDateStr)}`}
+                </p>
+              )}
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
               <DollarSign className="w-6 h-6 text-green-600" />
@@ -794,7 +805,7 @@ function DashboardSection({ tenancy, maintenanceRequests, paymentReceipts, curre
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <p className="text-indigo-100 text-sm">Property</p>
-              <p className="font-semibold mt-1">{tenancy.property.address.streetAddress}</p>
+              <p className="font-semibold mt-1">{tenancy.property.streetAddress}</p>
             </div>
             <div>
               <p className="text-indigo-100 text-sm">Lease Start</p>
@@ -882,9 +893,9 @@ function TenancySection({ tenancy, currency, formatDate }: any) {
           <div>
             <label className="text-sm text-slate-600">Address</label>
             <p className="font-medium text-slate-900 mt-1">
-              {tenancy.property.address.unitNumber} {tenancy.property.address.streetAddress}
+              {tenancy.property.unitNumber} {tenancy.property.streetAddress}
             </p>
-            <p className="text-slate-600">{tenancy.property.address.cityState}</p>
+            <p className="text-slate-600">{tenancy.property.cityState}</p>
           </div>
           <div>
             <label className="text-sm text-slate-600">Property Type</label>
@@ -918,11 +929,11 @@ function TenancySection({ tenancy, currency, formatDate }: any) {
           </div>
           <div>
             <label className="text-sm text-slate-600">Monthly Rent</label>
-            <p className="font-semibold text-lg text-green-600 mt-1">{currency(tenancy.rentalTerms.monthlyGross)}</p>
+            <p className="font-semibold text-lg text-green-600 mt-1">{currency(tenancy.monthlyGross)}</p>
           </div>
           <div>
             <label className="text-sm text-slate-600">Rental Deposit</label>
-            <p className="font-medium text-slate-900 mt-1">{currency(tenancy.rentalTerms.rentalDeposit)}</p>
+            <p className="font-medium text-slate-900 mt-1">{currency(tenancy.rentalDeposit)}</p>
           </div>
           <div>
             <label className="text-sm text-slate-600">Status</label>
@@ -954,6 +965,9 @@ function TenancySection({ tenancy, currency, formatDate }: any) {
 
 // Payments Section
 function PaymentsSection({ tenancy, paymentReceipts, currency, formatDate, getStatusColor, onUpload }: any) {
+  const obligations = generateRentObligations(tenancy, paymentReceipts);
+  const nextObligation = obligations.find(o: any => o.status === 'UNPAID' || o.status === 'OVERDUE') || obligations[0];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -963,65 +977,98 @@ function PaymentsSection({ tenancy, paymentReceipts, currency, formatDate, getSt
     >
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Payment History</h2>
-          <p className="text-sm text-slate-600">Upload and track your rent payments</p>
+          <h2 className="text-xl font-semibold text-slate-900">Rent Obligations & History</h2>
+          <p className="text-sm text-slate-600">Track your monthly rent payments</p>
         </div>
-        <button
-          onClick={onUpload}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
-        >
-          <Upload className="w-4 h-4" />
-          Upload Receipt
-        </button>
       </div>
 
-      {paymentReceipts.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 text-center border border-slate-200">
-          <CreditCard className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-          <p className="text-slate-600">No payment receipts uploaded yet</p>
-          <button
-            onClick={onUpload}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
-          >
-            Upload Your First Receipt
-          </button>
+      {nextObligation && (
+        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-8 text-white relative overflow-hidden shadow-lg border border-indigo-400">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <p className="text-indigo-100 font-medium tracking-wide uppercase text-sm mb-1">
+                {nextObligation.status === 'OVERDUE' ? 'Action Required' : 'Next Payment Due'}
+              </p>
+              <h3 className="text-3xl font-bold mb-1">{nextObligation.monthLabel} Rent</h3>
+              <p className="text-xl font-medium text-white/90">{currency(nextObligation.amount)}</p>
+            </div>
+            
+            <div className="flex flex-col items-start md:items-end gap-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-indigo-200" />
+                <span className="text-lg">
+                  {nextObligation.status === 'OVERDUE' 
+                    ? <span className="text-red-300 font-semibold">Overdue! (Due {formatDate(nextObligation.dueDateStr)})</span>
+                    : <span className="text-indigo-100">Due {formatDate(nextObligation.dueDateStr)}</span>
+                  }
+                </span>
+              </div>
+              {(nextObligation.status === 'UNPAID' || nextObligation.status === 'OVERDUE' || nextObligation.status === 'REJECTED') && (
+                <button
+                  onClick={onUpload}
+                  className="bg-white text-indigo-600 hover:bg-slate-50 px-6 py-3 rounded-lg font-semibold shadow-sm transition-colors w-full md:w-auto"
+                >
+                  Upload Receipt
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="absolute -right-20 -top-20 opacity-10">
+            <CreditCard className="w-64 h-64" />
+          </div>
         </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-slate-200 bg-slate-50">
+          <h3 className="font-semibold text-slate-800">Rent Payment Schedule</h3>
+        </div>
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Date</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Month</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Due Date</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Amount</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Method</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Reference</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Status</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {paymentReceipts.map((receipt: any) => (
-                <tr key={receipt.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm text-slate-900">{formatDate(receipt.paymentDate)}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-slate-900">{currency(receipt.amount)}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{receipt.paymentMethod}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{receipt.referenceNumber || '-'}</td>
+              {obligations.map((obl: any) => (
+                <tr key={obl.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{obl.monthLabel}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{formatDate(obl.dueDateStr)}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-slate-900">{currency(obl.amount)}</td>
                   <td className="px-6 py-4">
-                    <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(receipt.verificationStatus)}`}>
-                      {receipt.verificationStatus}
+                    <span className={`text-xs px-3 py-1.5 rounded-full border ${getStatusColor(obl.status)}`}>
+                      {obl.status.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <button className="text-indigo-600 hover:text-indigo-700 text-sm font-medium">
-                      <Download className="w-4 h-4" />
-                    </button>
+                    {(obl.status === 'UNPAID' || obl.status === 'OVERDUE' || obl.status === 'REJECTED') ? (
+                      <button onClick={onUpload} className="text-indigo-600 hover:text-indigo-700 text-sm font-medium transition-colors">
+                        Pay Now
+                      </button>
+                    ) : (
+                      <span className="text-slate-400 text-sm flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" /> Settled
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
+              {obligations.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                    No obligations found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-      )}
+      </div>
     </motion.div>
   )
 }
@@ -1100,60 +1147,121 @@ function MaintenanceSection({ maintenanceRequests, formatDate, getStatusColor, o
 
 // Utilities Section
 function UtilitiesSection({ utilityBills, currency, formatDate, getStatusColor, onUpload }: any) {
+  const outstandingBills = utilityBills.filter((b: any) => b.status === 'UPLOADED' || b.status === 'OVERDUE');
+  const paidBills = utilityBills.filter((b: any) => b.status === 'PAID');
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
+      className="space-y-8"
     >
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Utility Bills</h2>
-          <p className="text-sm text-slate-600">Upload and track your utility bills</p>
+          <p className="text-sm text-slate-600">Track and pay your utility obligations</p>
         </div>
         <button
           onClick={onUpload}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors shadow-sm font-medium"
         >
           <Upload className="w-4 h-4" />
-          Upload Bill
+          Upload Bill Receipt
         </button>
       </div>
 
-      {utilityBills.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 text-center border border-slate-200">
-          <Zap className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-          <p className="text-slate-600">No utility bills uploaded yet</p>
-          <button
-            onClick={onUpload}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
-          >
-            Upload Your First Bill
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {utilityBills.map((bill: any) => (
-            <div key={bill.id} className="bg-white rounded-xl p-6 border border-slate-200">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-blue-600" />
+      <div>
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-orange-500" />
+          Outstanding Bills
+        </h3>
+        {outstandingBills.length === 0 ? (
+          <div className="bg-slate-50 rounded-xl p-8 text-center border border-dashed border-slate-300">
+            <CheckCircle className="w-12 h-12 mx-auto text-green-400 mb-3" />
+            <p className="text-slate-600 font-medium">All caught up!</p>
+            <p className="text-sm text-slate-500">You have no outstanding utility bills.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {outstandingBills.map((bill: any) => (
+              <div key={bill.id} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-1 h-full ${bill.status === 'OVERDUE' ? 'bg-red-500' : 'bg-orange-500'}`} />
+                <div className="flex items-center justify-between mb-3 pl-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-slate-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-900">{bill.billType}</h3>
+                      <p className="text-xs text-slate-500">{bill.billMonth}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${getStatusColor(bill.status)}`}>
+                    {bill.status}
+                  </span>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(bill.status)}`}>
-                  {bill.status}
-                </span>
+                <div className="pl-2 mt-4 flex items-end justify-between">
+                  <div>
+                    <p className="text-sm text-slate-500 mb-0.5">Amount Due</p>
+                    <span className="text-xl font-bold text-slate-900">{currency(bill.amount)}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500 mb-1">Due: {formatDate(bill.dueDate)}</p>
+                    <button onClick={onUpload} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                      Pay Now &rarr;
+                    </button>
+                  </div>
+                </div>
               </div>
-              <h3 className="font-semibold text-slate-900 mb-1">{bill.billType}</h3>
-              <p className="text-sm text-slate-600 mb-4">{bill.billMonth}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-slate-900">{currency(bill.amount)}</span>
-                <span className="text-xs text-slate-500">Due: {formatDate(bill.dueDate)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5 text-green-500" />
+          Paid History
+        </h3>
+        {paidBills.length === 0 ? (
+          <div className="bg-white rounded-xl p-8 text-center border border-slate-200">
+            <p className="text-slate-500">No payment history available.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Bill Type</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Month</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Amount</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Paid Date</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-600 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {paidBills.map((bill: any) => (
+                  <tr key={bill.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-slate-400" />
+                      {bill.billType}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{bill.billMonth}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{currency(bill.amount)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{bill.paidDate ? formatDate(bill.paidDate) : '-'}</td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs px-2.5 py-1 rounded-full border bg-green-500/10 text-green-600 border-green-500/20">
+                        Paid
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </motion.div>
   )
 }
