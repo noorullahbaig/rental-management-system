@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import AdminDashboard from "./components/AdminDashboard"
+import PropertyWorkspace from "./components/PropertyWorkspace"
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Select from '@radix-ui/react-select'
 import * as Tabs from '@radix-ui/react-tabs'
@@ -382,6 +383,7 @@ function App() {
   const [collectionDateInput, setCollectionDateInput] = useState('2026-05-01')
   const [showMobileNav, setShowMobileNav] = useState(false)
   const [propertyDrawer, setPropertyDrawer] = useState(false)
+  const [propertyWizardStep, setPropertyWizardStep] = useState(1)
   const [tenantDrawer, setTenantDrawer] = useState(false)
   const [tenancyDrawer, setTenancyDrawer] = useState(false)
   const [tenancyWizardStep, setTenancyWizardStep] = useState(1)
@@ -396,6 +398,7 @@ function App() {
   const [renovationCreateError, setRenovationCreateError] = useState('')
 
   const [propertyEditDrawer, setPropertyEditDrawer] = useState(false)
+  const [propertyEditWizardStep, setPropertyEditWizardStep] = useState(1)
   const [propertyEditSaving, setPropertyEditSaving] = useState(false)
   const [propertyEditError, setPropertyEditError] = useState('')
   const [propertyEditId, setPropertyEditId] = useState<string | null>(null)
@@ -1555,205 +1558,36 @@ function App() {
               )}
 
               {section === 'properties' && (
-                <section className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-                  <div className="rounded-2xl border border-slate-200 bg-white">
-                    <div className="border-b border-slate-200 px-4 py-3">
-                      <h2 className="text-base font-semibold">Properties</h2>
-                    </div>
-                    <div className="max-h-[65vh] overflow-auto">
-                      <table className="w-full text-sm">
-                        <thead className="sticky top-0 bg-slate-50 text-left">
-                          <tr>
-                            <th className="px-4 py-2">Serial</th>
-                            <th className="px-4 py-2">Address</th>
-                            <th className="px-4 py-2">Type</th>
-                            <th className="px-4 py-2">Book / Market</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredProperties.map((property) => (
-                            <tr
-                              key={property.id}
-                              onClick={() => setSelectedPropertyId(property.id)}
-                              className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${selectedPropertyId === property.id ? 'bg-cyan-50' : ''}`}
-                            >
-                              <td className="px-4 py-3 font-medium">{property.serialNumber}</td>
-                              <td className="px-4 py-3">
-                                {property.address.unitNumber}, {property.address.streetAddress}
-                              </td>
-                              <td className="px-4 py-3">
-                                {property.kind} / {property.ownership}
-                              </td>
-                              <td className="px-4 py-3">
-                                {currency(property.bookValue)} / {currency(property.marketValue)}
-                              </td>
-                            </tr>
-                          ))}
-                          {!filteredProperties.length && (
-                            <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-[var(--muted)]">
-                                No properties yet.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <h2 className="mb-3 text-base font-semibold">Property Detail</h2>
-                    {!selectedProperty ? (
-                      <p className="text-sm text-[var(--muted)]">Select a property to view tabs and interactions.</p>
-                    ) : (
-                      <Tabs.Root defaultValue="property">
-                        <Tabs.List className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1">
-                          {['property', 'tenants', 'deductions', 'reports'].map((tab) => (
-                            <Tabs.Trigger
-                              key={tab}
-                              value={tab}
-                              className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-white"
-                            >
-                              {tab[0].toUpperCase() + tab.slice(1)}
-                            </Tabs.Trigger>
-                          ))}
-                        </Tabs.List>
-                        <Tabs.Content value="property" className="space-y-3 text-sm">
-                          <DataLine label="Project">{selectedProperty.projectName || '-'}</DataLine>
-                          <DataLine label="Developer">{selectedProperty.developerName || '-'}</DataLine>
-                          <DataLine label="SPA Price">{currency(selectedProperty.spaPrice)}</DataLine>
-                          <DataLine label="Size (sqft)">{selectedProperty.squareFeet || '-'}</DataLine>
-                          <DataLine label="Rooms">{selectedProperty.numberOfRooms || '-'}</DataLine>
-                          <DataLine label="Car Parks">{selectedProperty.carParks || '-'}</DataLine>
-                          <DataLine label="Ceiling Fans">{selectedProperty.ceilingFans || '-'}</DataLine>
-                          <DataLine label="Appliances">{selectedProperty.otherAppliances || '-'}</DataLine>
-                          <div className="flex flex-wrap gap-2 pt-2">
-                            <button
-                              onClick={() => setRenovationDrawer(true)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
-                            >
-                              Add Renovation Item
-                            </button>
-                            <button
-                              onClick={() => openEditProperty(selectedProperty)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50 flex items-center gap-1.5"
-                            >
-                              <Edit3 size={14} /> Edit Property
-                            </button>
-                            <button
-                              onClick={() => deleteProperty(selectedProperty.id)}
-                              className="rounded-lg border border-red-200 text-red-600 px-3 py-2 hover:bg-red-50 flex items-center gap-1.5"
-                            >
-                              <Trash2 size={14} /> Delete Property
-                            </button>
-                          </div>
-                          <div className="space-y-2">
-                            {selectedProperty.renovations.map((renovation) => (
-                              <div key={renovation.id} className="group rounded-lg border border-slate-200 p-3 relative transition-colors hover:border-[var(--primary)] hover:bg-slate-50">
-                                <p className="font-medium pr-8">{renovation.description}</p>
-                                <p className="text-xs text-[var(--muted)]">
-                                  {currency(renovation.amountPaid)} | {renovation.paymentDate || 'No date'} |{' '}
-                                  {renovation.depreciationPeriod} years
-                                </p>
-                                <button
-                                  onClick={() => openEditRenovation(renovation, selectedProperty.id)}
-                                  className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded transition-all"
-                                  title="Edit Renovation"
-                                >
-                                  <Edit3 size={14} />
-                                </button>
-                              </div>
-                            ))}
-                            {!selectedProperty.renovations.length && (
-                              <p className="text-xs text-[var(--muted)]">No renovation items yet (max 10).</p>
-                            )}
-                          </div>
-                        </Tabs.Content>
-                        <Tabs.Content value="tenants" className="space-y-3 text-sm">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setTenantDrawer(true)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
-                            >
-                              Create Tenant
-                            </button>
-                            <button
-                              onClick={() => setTenancyDrawer(true)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
-                            >
-                              Create Tenancy
-                            </button>
-                          </div>
-                          <div className="space-y-2">
-                            {selectedPropertyTenancies.map((tenancy) => {
-                              const tenant = state.tenants.find((item) => item.id === tenancy.tenantId)
-                              return (
-                                <div key={tenancy.id} className="rounded-lg border border-slate-200 p-3">
-                                  <p className="font-medium">{tenant?.name || 'Unknown tenant'}</p>
-                                  <p className="text-xs text-[var(--muted)]">
-                                    Status: {tenancy.status} | Net: {currency(tenancy.rentalTerms.monthlyNet)}
-                                  </p>
-                                  {!tenancy.closedEarly && (
-                                    <button
-                                      onClick={() => closeTenancyEarly(tenancy.id)}
-                                      className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-                                    >
-                                      Close Early
-                                    </button>
-                                  )}
-                                </div>
-                              )
-                            })}
-                            {!selectedPropertyTenancies.length && (
-                              <p className="text-xs text-[var(--muted)]">No tenancy records yet.</p>
-                            )}
-                          </div>
-                        </Tabs.Content>
-                        <Tabs.Content value="deductions" className="space-y-2 text-sm">
-                          {selectedPropertyTenancies.map((tenancy) => (
-                            <div key={tenancy.id} className="rounded-lg border border-slate-200 p-3">
-                              <p className="mb-2 font-medium">Tenancy {tenancy.id.slice(0, 6)}</p>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <DataTile label="Maintenance" value={currency(tenancy.deductions.maintenanceCharges)} />
-                                <DataTile label="Quit Rent" value={currency(tenancy.deductions.quitRent)} />
-                                <DataTile label="Assessment" value={currency(tenancy.deductions.assessment)} />
-                                <DataTile label="Utility" value={currency(tenancy.deductions.utilityCharges)} />
-                                <DataTile
-                                  label="Fire Insurance"
-                                  value={currency(tenancy.deductions.fireInsurancePremium)}
-                                />
-                                <DataTile label="Sinking Fund" value={currency(tenancy.deductions.sinkingFundPayment)} />
-                                <DataTile label="Misc Charges" value={currency(tenancy.deductions.miscellaneousCharges)} />
-                                <DataTile label="Cost of Funds" value={currency(tenancy.deductions.bankCostOfFunds)} />
-                                <DataTile label="Depreciation" value={currency(tenancy.deductions.depreciationCost)} />
-                              </div>
-                            </div>
-                          ))}
-                          {!selectedPropertyTenancies.length && (
-                            <p className="text-xs text-[var(--muted)]">
-                              Deductions will appear once tenancies are created.
-                            </p>
-                          )}
-                        </Tabs.Content>
-                        <Tabs.Content value="reports" className="space-y-2 text-sm">
-                          <button
-                            onClick={() => {
-                              setSection('reports')
-                              setReportPropertyId(selectedProperty.id)
-                            }}
-                            className="rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
-                          >
-                            Open Property Reports
-                          </button>
-                          <p className="text-xs text-[var(--muted)]">
-                            Report module includes Statement of Account, P&L, Cash Account, collections, arrears,
-                            rent roll, deposit register, and depreciation schedule.
-                          </p>
-                        </Tabs.Content>
-                      </Tabs.Root>
-                    )}
-                  </div>
-                </section>
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <PropertyWorkspace
+                    properties={state.properties}
+                    tenancies={state.tenancies}
+                    tenants={state.tenants}
+                    selectedPropertyId={selectedPropertyId}
+                    onSelectProperty={setSelectedPropertyId}
+                    onOpenCreateProperty={() => {
+                      setPropertyWizardStep(1);
+                      setPropertyDrawer(true);
+                    }}
+                    onOpenEditProperty={(prop: any) => {
+                      setPropertyEditWizardStep(1);
+                      openEditProperty(prop);
+                    }}
+                    onDeleteProperty={deleteProperty}
+                    onOpenRenovationDrawer={(propId: string) => {
+                      setSelectedPropertyId(propId);
+                      setRenovationDrawer(true);
+                    }}
+                    onEditRenovation={(renovation: any, propId: string) => {
+                      openEditRenovation(renovation, propId);
+                    }}
+                    onOpenTenancyDrawer={(propId?: string) => {
+                      if (propId) setSelectedPropertyId(propId);
+                      setTenancyDrawer(true);
+                    }}
+                    onNavigate={setSection}
+                  />
+                </div>
               )}
 
               {section === 'tenants' && (
@@ -2880,21 +2714,50 @@ function App() {
         open={propertyDrawer}
         onOpenChange={(open) => {
           setPropertyDrawer(open)
-          if (!open) setPropertyCreateError('')
+          if (!open) { setPropertyCreateError(''); setPropertyWizardStep(1); }
         }}
         widthClassName="max-w-3xl"
         footer={
-          <SaveButton
-            onClick={createProperty}
-            disabled={!propertyDraft.address.streetAddress}
-            busy={propertyCreateSaving}
-            busyLabel="Saving property..."
-            error={propertyCreateError}
-          >
-            Save property
-          </SaveButton>
-        }
-      >
+          <div className="flex items-center justify-between w-full">
+            <div className="flex gap-1.5 items-center">
+              <span className="text-xs font-bold text-slate-500">Step {propertyWizardStep} of 2:</span>
+              <span className="text-xs font-semibold text-slate-800">
+                {propertyWizardStep === 1 ? 'Location & Identity' : 'Valuation & Specs'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {propertyWizardStep === 2 && (
+                <button
+                  type="button"
+                  onClick={() => setPropertyWizardStep(1)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                >
+                  Back
+                </button>
+              )}
+              {propertyWizardStep === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setPropertyWizardStep(2)}
+                  disabled={!propertyDraft.address.streetAddress}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+                >
+                  Next: Valuation & Specs
+                </button>
+              ) : (
+                <SaveButton
+                  onClick={createProperty}
+                  disabled={!propertyDraft.address.streetAddress}
+                  busy={propertyCreateSaving}
+                  busyLabel="Saving..."
+                  error={propertyCreateError}
+                >
+                  Save Property
+                </SaveButton>
+              )}
+            </div>
+          </div>
+        }      >
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
             <PanelSummary label="System serial" value={nextPropertySerial} tone="accent" />
@@ -2907,7 +2770,7 @@ function App() {
               value={`${propertyDraft.kind} · ${propertyDraft.ownership}`}
             />
           </div>
-          <SectionCard title="Identity" description="Start with the property class used in searches and reports.">
+          {propertyWizardStep === 1 && (<div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200"><SectionCard title="Identity" description="Start with the property class used in searches and reports.">
             <LabeledSelect
               label="Property type"
               value={propertyDraft.kind}
@@ -2955,7 +2818,8 @@ function App() {
               }
             />
           </SectionCard>
-          <SectionCard title="Ownership and value" description="Used in valuation views and operational reporting.">
+          </div>)}
+          {propertyWizardStep === 2 && (<div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200"><SectionCard title="Ownership and value" description="Used in valuation views and operational reporting.">
             <LabeledSelect
               label="Ownership"
               value={propertyDraft.ownership}
@@ -3029,6 +2893,7 @@ function App() {
               onChange={(value) => setPropertyDraft((prev) => ({ ...prev, developerName: value }))}
             />
           </SectionCard>
+          </div>)}
         </div>
       </Drawer>
 
@@ -3505,23 +3370,52 @@ function App() {
         open={propertyEditDrawer}
         onOpenChange={(open) => {
           setPropertyEditDrawer(open)
-          if (!open) setPropertyEditError('')
+          if (!open) { setPropertyEditError(''); setPropertyEditWizardStep(1); }
         }}
         widthClassName="max-w-3xl"
         footer={
-          <SaveButton
-            onClick={updateProperty}
-            disabled={!propertyEditDraft.address.streetAddress}
-            busy={propertyEditSaving}
-            busyLabel="Updating property..."
-            error={propertyEditError}
-          >
-            Update property
-          </SaveButton>
-        }
-      >
+          <div className="flex items-center justify-between w-full">
+            <div className="flex gap-1.5 items-center">
+              <span className="text-xs font-bold text-slate-500">Step {propertyEditWizardStep} of 2:</span>
+              <span className="text-xs font-semibold text-slate-800">
+                {propertyEditWizardStep === 1 ? 'Location & Identity' : 'Valuation & Specs'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {propertyEditWizardStep === 2 && (
+                <button
+                  type="button"
+                  onClick={() => setPropertyEditWizardStep(1)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                >
+                  Back
+                </button>
+              )}
+              {propertyEditWizardStep === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setPropertyEditWizardStep(2)}
+                  disabled={!propertyEditDraft.address.streetAddress}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+                >
+                  Next: Valuation & Specs
+                </button>
+              ) : (
+                <SaveButton
+                  onClick={updateProperty}
+                  disabled={!propertyEditDraft.address.streetAddress}
+                  busy={propertyEditSaving}
+                  busyLabel="Updating..."
+                  error={propertyEditError}
+                >
+                  Update Property
+                </SaveButton>
+              )}
+            </div>
+          </div>
+        }      >
         <div className="space-y-4">
-          <SectionCard title="Identity" description="Property class used in searches and reports.">
+          {propertyEditWizardStep === 1 && (<div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200"><SectionCard title="Identity" description="Property class used in searches and reports.">
             <LabeledSelect
               label="Property type"
               value={propertyEditDraft.kind}
@@ -3567,7 +3461,8 @@ function App() {
               }
             />
           </SectionCard>
-          <SectionCard title="Ownership and value" description="Used in valuation views and operational reporting.">
+          </div>)}
+          {propertyEditWizardStep === 2 && (<div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200"><SectionCard title="Ownership and value" description="Used in valuation views and operational reporting.">
             <LabeledSelect
               label="Ownership"
               value={propertyEditDraft.ownership}
@@ -3641,6 +3536,7 @@ function App() {
               onChange={(value) => setPropertyEditDraft((prev) => ({ ...prev, developerName: value }))}
             />
           </SectionCard>
+          </div>)}
         </div>
       </Drawer>
 
