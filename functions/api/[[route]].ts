@@ -90,7 +90,7 @@ app.use('*', async (c, next) => {
 app.use('*', async (c, next) => {
   // Allow login/logout and preflight without auth
   if (c.req.method === 'OPTIONS') return await next()
-  if (c.req.path === '/api/auth/login' || c.req.path === '/api/logout') {
+  if (c.req.path === '/api/auth/login') {
     return await next()
   }
 
@@ -114,8 +114,8 @@ app.use('*', async (c, next) => {
   })
 
   if (!user || user.status !== 'ACTIVE') {
-    deleteCookie(c, 'user_id')
-    deleteCookie(c, 'user_role')
+    deleteCookie(c, 'user_id', { path: '/' })
+    deleteCookie(c, 'user_role', { path: '/' })
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
